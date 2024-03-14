@@ -1,0 +1,7 @@
+add_library(boundary boundary.cpp)
+add_executable(boundary_visual_test test_visually_boundary.cpp)
+target_link_libraries(boundary_visual_test boundary tectonicSimulation)
+target_include_directories(boundary_visual_test PRIVATE ./ ${CMAKE_SOURCE_DIR}/inc)
+
+
+add_definitions(-DCMAKE_EXPORT_COMPILE_COMMANDS=ON)

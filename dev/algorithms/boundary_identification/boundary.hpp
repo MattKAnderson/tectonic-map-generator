@@ -1,5 +1,5 @@
 #include <vector>
-#include "Vector2D.hpp"
+#include <Vector2D.hpp>
 
 struct edge {
     edge(Vector2D<int> p1, Vector2D<int> p2, int group_a, int group_b): p1(p1), p2(p2), group_a(group_a), group_b(group_b) {};

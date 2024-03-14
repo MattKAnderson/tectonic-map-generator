@@ -1,6 +1,6 @@
 #include <random>
+#include <Vector2D.hpp>
 
-#include "Vector2D.hpp"
 #include "plate.hpp"
 
 class tectonicSimulation {

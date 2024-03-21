@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.27.0)
 project(map_scripts VERSION 0.1.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
 
 include(FetchContent)
@@ -26,6 +26,7 @@ target_link_libraries(tectonicSimulation PUBLIC Vector2D::Vector2D)
 # target_link_libraries(test_simulation tectonicSimulation timeit::timeit)
 
 add_subdirectory(dev/algorithms/boundary_identification)
+add_subdirectory(dev/algorithms/space_partitioning)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})

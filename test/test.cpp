@@ -5,9 +5,10 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include <timeit.hpp>
 
 #include "tectonicSimulation.hpp"
-#include "timeit.hpp"
+
 
 
 template <typename T>

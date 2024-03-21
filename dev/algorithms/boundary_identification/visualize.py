@@ -3,7 +3,7 @@ import random
 import matplotlib.pyplot as plt
 
 
-f = open("build/dev/algorithms/plate_partitioning.json", "r")
+f = open("build/dev/algorithms/boundary_identification/plate_partitioning.json", "r")
 data = json.load(f)["matrix"]
 xsize = len(data)
 ysize = len(data[0])
@@ -49,7 +49,7 @@ ax[0].matshow(data)
 # for edge in data:
 #     ax[1].plot([edge[0][1], edge[1][1]], [edge[0][0], edge[1][0]], color="red")
 
-f4 = open("build/dev/algorithms/labelled_boundary_edges.json", "r")
+f4 = open("build/dev/algorithms/boundary_identification/labelled_boundary_edges.json", "r")
 data = json.load(f4)["labelled_edges"]
 
 groups = {}

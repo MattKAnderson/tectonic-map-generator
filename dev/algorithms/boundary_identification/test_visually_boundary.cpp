@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <timeit.hpp>
 
 #include "boundary.hpp"
 #include "tectonicSimulation.hpp"
@@ -12,9 +13,13 @@ void output_edge_list(std::string filename, std::vector<edge>& edges);
 void output_labelled_edges(std::string filename, std::vector<std::pair<int, edge>>& labelled_edges);
 
 int main() {
-    tectonicSimulation sim(12, 1024, 1024);
+    tectonicSimulation sim(12, 1024, 1024, true, 9999);
 
     sim.plate_assignment();
+
+    timeIt::print(
+        []() { tectonicSimulation sim(12, 1024, 1024, true, 9999); sim.plate_assignment(); }
+    );
 
     auto plate_assignments = sim.plate_idmap();
 

@@ -32,20 +32,32 @@ get_graph() {
     return graph_;
 }
 
-std::vector<Coordinate> SpacePartitioner::get_traversal_history() {
-    std::vector<OrderedCoordinate> coords;
+std::vector<Edge> SpacePartitioner::get_traversal_history() {
+    
+    std::vector<OrderedEdge> edges;
     for (auto& [coord, vertex] : graph_) {
-        coords.emplace_back(coord, vertex->visit_number);
+
+        for (int i = 0; i < 4; i++) {
+            auto* connected = vertex->edges[i];
+            if (connected == nullptr) { continue; }
+            if (vertex->visit_number < connected->visit_number) { 
+                edges.emplace_back(
+                    vertex->coord, connected->coord, vertex->visit_number
+                );
+            }
+        } 
     }
-    std::sort(coords.begin(), coords.end());
-    std::vector<Coordinate> ordered_coords;
-    ordered_coords.reserve(coords.size());
+    std::sort(edges.begin(), edges.end());
+    std::vector<Edge> ordered_edges;
+    ordered_edges.reserve(edges.size());
     std::transform(
-        coords.begin(), coords.end(), std::back_inserter(ordered_coords),
-        [](OrderedCoordinate& oc) { return oc.coord; }
+        edges.begin(), edges.end(), std::back_inserter(ordered_edges),
+        [](OrderedEdge& oe) { return oe.edge; }
     );
-    return ordered_coords;
+    return ordered_edges;
 }
+
+
 
 void SpacePartitioner::seed_growth_partition(
     int xsize, int ysize, int num_seeds
@@ -249,6 +261,7 @@ void SpacePartitioner::convert_graph_to_borderlines() {
         if (visited.find(node) != visited.end()) {
             continue;
         }
+        // std::cout << "Starting at: (" << c.x << ", " << c.y << ")\n";
         visited.insert(node);
         int edge_count = 0;
         std::array<int, 4> edge_ids = {};
@@ -297,16 +310,27 @@ std::vector<Coordinate> SpacePartitioner::follow_line(
     do {
         node = node->edges[edge];
         line.push_back(node->coord);
-        visited.insert(node);
         int comp_edge = complementary_edge(edge);
         edge_count = 0;
         for (int i = 0; i < 4; i++) {
-            if (node->edges[i] != nullptr && i != comp_edge) { 
+            if (node->edges[i] != nullptr && i != comp_edge
+            ) { 
                 edge = i;
                 ++edge_count; 
             }
         }
-    } while (edge_count < 2);
+        if (edge_count == 1 && visited.find(node) != visited.end()) {
+            std::cout << "Closed loop ending on: ("
+                      << node->coord.x << ", " << node->coord.y << ")\n";
+            break;
+        }
+        visited.insert(node);
+    } while (edge_count == 1);
+    if (edge_count == 0) {
+        std::cout << "WARNING: Encountered a dead end on node: ("
+                  << node->coord.x << ", " << node->coord.y << ")" 
+                  << std::endl;
+    }
     return line;    
 }
 
@@ -368,7 +392,7 @@ void SpacePartitioner::dfs(
         }
     }
     else {
-        std::cout << "junction at: (" << node->coord.x << ", " << node->coord.y << ")\n";
+        // std::cout << "junction at: (" << node->coord.x << ", " << node->coord.y << ")\n";
         for (int i = 0; i < current_edge_count; i++) {
 
         }
@@ -506,6 +530,71 @@ unassigned_adjacent_grid_cells(Coordinate coord) {
     return unassigned_adjacent;
 }
 
+
+void SpacePartitioner::unbalanced_voronoi_partition(
+    int xsize, int ysize, int num_seeds, double alpha
+) {
+    random_x_ = std::uniform_int_distribution(0, xsize);
+    random_y_ = std::uniform_int_distribution(0, ysize);
+    xsize_ = xsize;
+    ysize_ = ysize;
+    initialize_containers();
+    unbalanced_voronoi(num_seeds, alpha);
+    convert_region_map_to_graph();
+    convert_graph_to_borderlines();
+    convert_borderlines_to_border_map();
+}
+
+
+void SpacePartitioner::unbalanced_voronoi(int num_seeds, double alpha) {
+    std::vector<Coordinate> seeds = place_seeds_and_get_coords(num_seeds);
+    std::vector<double> seed_weights;
+    seed_weights = normally_distributed_seed_weights(num_seeds, alpha, 1.0);
+
+    for (int i = 0; i < xsize_; i++) {
+        for (int j = 0; j < ysize_; j++) {
+            if (region_map_[i][j] == -1) {
+                Coordinate c = weighted_closest_seed(
+                    seeds, seed_weights, {i, j}
+                );
+                region_map_[i][j] = region_map_[c.x][c.y];
+            }
+        }
+    }
+}
+
+std::vector<double> SpacePartitioner::normally_distributed_seed_weights(
+    int num_seeds, double alpha, double min_weight
+) {
+    std::normal_distribution<double> weight_selector(0.0, alpha);
+    std::vector<double> weights(num_seeds);
+    for (int i = 0; i < num_seeds; i++) {
+        weights[i] = weight_selector(rng_); 
+    }
+    double min_elem = *std::min_element(weights.begin(), weights.end());
+    double translation = min_weight - min_elem;
+    auto op = [translation](double& d) { return d + translation; };
+    std::transform(weights.begin(), weights.end(), weights.begin(), op);
+    return weights;
+}
+
+Coordinate SpacePartitioner::weighted_closest_seed(
+    std::vector<Coordinate>& seeds, 
+    std::vector<double>& weights, 
+    Coordinate c
+) {
+    int closest_id = 0;
+    double shortest_dist = weights[0] * toroidal_distance(seeds[0], c);
+    for (int i = 1; i < seeds.size(); i++) {
+        double dist = weights[i] * toroidal_distance(seeds[i], c);
+        if (dist < shortest_dist) {
+            closest_id = i;
+            shortest_dist = dist;
+        }
+    }
+    return seeds[closest_id];
+}
+
 void SpacePartitioner::voronoi_partition(
     int xsize, int ysize, int num_seeds
 ) {
@@ -520,8 +609,23 @@ void SpacePartitioner::voronoi_partition(
     convert_borderlines_to_border_map();
 }
 
+
 void SpacePartitioner::naive_voronoi(int num_seeds) {
     // naive is compute distance from each pixel to every seed, complexity: (elems * num seed)
+    std::vector<Coordinate> seeds = place_seeds_and_get_coords(num_seeds);
+    for (int i = 0; i < xsize_; i++) {
+        for (int j = 0; j < ysize_; j++) {
+            if (region_map_[i][j] == -1) {
+                Coordinate c = closest_seed(seeds, {i, j});
+                region_map_[i][j] = region_map_[c.x][c.y];
+            }
+        }
+    }
+}
+
+std::vector<Coordinate> SpacePartitioner::place_seeds_and_get_coords(
+    int num_seeds
+) {
     std::vector<Coordinate> seed_locations;
     seed_locations.reserve(num_seeds);
     for (int i = 0; i < num_seeds; i++) {
@@ -530,15 +634,7 @@ void SpacePartitioner::naive_voronoi(int num_seeds) {
         region_map_[x][y] = i;
         seed_locations.emplace_back(x, y);
     }
-
-    for (int i = 0; i < xsize_; i++) {
-        for (int j = 0; j < ysize_; j++) {
-            if (region_map_[i][j] == -1) {
-                Coordinate c = closest_seed(seed_locations, {i, j});
-                region_map_[i][j] = region_map_[c.x][c.y];
-            }
-        }
-    }
+    return seed_locations;
 }
 
 Coordinate SpacePartitioner::closest_seed(
@@ -585,20 +681,16 @@ void SpacePartitioner::convert_region_map_to_graph() {
 
     // assumes the graph is empty
 
-    std::cout << "Converting the region map to a graph" << std::endl;
-
     for (int i = 0; i < xsize_; i++) {
         for (int j = 0; j < ysize_; j++) {
-            if (region_map_[i][j] != region_map_[i][above(j)]) {
-                ensure_nodes_and_edge({i, j}, {right(i), j}, 0, 1);
+            if (region_map_[i][j] != region_map_[above(i)][j]) {
+                ensure_nodes_and_edge({i, j}, {i, right(j)}, 0, 1);
             }
-            if (region_map_[i][j] != region_map_[left(i)][j]) {
-                ensure_nodes_and_edge({i, j}, {i, below(j)}, 3, 2);
+            if (region_map_[i][j] != region_map_[i][left(j)]) {
+                ensure_nodes_and_edge({i, j}, {below(i), j}, 3, 2);
             }
         }
     }
-
-    std::cout << "Size of graph: " << graph_.size() << std::endl;
 }
 
 // ensure the nodes and the edge between them exists

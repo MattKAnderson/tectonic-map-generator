@@ -13,25 +13,27 @@ void vector_output(std::string filename, std::vector<T>& vec);
 
 int main() {
     
-    int xsize = 1024;
+    int xsize = 4096;
     int ysize = xsize;
     int num_seeds = 16;
+    double alpha = 0.05; 
+    long long seed = 334127613415;
 
     std::mt19937_64 rng(325);
     std::geometric_distribution dist(0.33);
 
     //space_partition::StochasticSpacePartitioner partitioner(rng, dist);
 
-    dev::SpacePartitioner partitioner(31552);
+    dev::SpacePartitioner partitioner(seed);
 
     //partitioner.random_walk_partition(512, 512, 8, 0.03);
-    partitioner.voronoi_partition(xsize, ysize, num_seeds);
+    partitioner.unbalanced_voronoi_partition(xsize, ysize, num_seeds, alpha);
 
-    dev::SpacePartitioner partitioner2(8172);
+    dev::SpacePartitioner partitioner2(seed);
 
     std::vector<std::vector<int>> region_map, border_map;
     std::vector<std::vector<dev::Coordinate>> borderlines;
-    std::vector<dev::Coordinate> traversal_history;
+    std::vector<dev::Edge> traversal_history;
     region_map = partitioner.get_region_map();
     border_map = partitioner.get_border_map();
     borderlines = partitioner.get_borderlines();
@@ -39,13 +41,14 @@ int main() {
 
 
     timeIt::print(
-        [](decltype(partitioner)& partitioner, int a, int b, int c) {
-            partitioner.voronoi_partition(a, b, c);
+        [](decltype(partitioner)& partitioner, int a, int b, int c, double alpha) {
+            partitioner.unbalanced_voronoi_partition(a, b, c, alpha);
         },
         partitioner2,
         xsize,
         ysize,
-        num_seeds
+        num_seeds,
+        alpha
     );
 
 /*
@@ -66,16 +69,16 @@ int main() {
         16
     );
 */
-    std::cout << "Writing region partition to: region_partitions.json" << std::endl;
+    //std::cout << "Writing region partition to: region_partitions.json" << std::endl;
     matrix_output("region_partitions.json", region_map);
 
-    std::cout << "Writing boundary map to: border_map.json" << std::endl;
+    //std::cout << "Writing boundary map to: border_map.json" << std::endl;
     matrix_output("border_map.json", border_map);
 
-    std::cout << "Writing borderlines to: borderlines.json" << std::endl;
+    //std::cout << "Writing borderlines to: borderlines.json" << std::endl;
     matrix_output("borderlines.json", borderlines);
 
-    std::cout << "Writing traversal history to: traversal_history.json" << std::endl;
+    //std::cout << "Writing traversal history to: traversal_history.json" << std::endl;
     vector_output("traversal_history.json", traversal_history);
 
 }
@@ -88,7 +91,12 @@ std::string to_string(const T& t) {
 template <>
 std::string to_string<dev::Coordinate>(const dev::Coordinate& c) {
     return "[" + std::to_string(c.x) + ", " + std::to_string(c.y) + "]";
-} 
+}
+
+template <>
+std::string to_string<dev::Edge>(const dev::Edge& e) {
+    return "[" + to_string(e.start) + ", " + to_string(e.end) + "]";
+}
 
 template <typename T>
 void matrix_output(std::string filename, std::vector<std::vector<T>>& mat) {

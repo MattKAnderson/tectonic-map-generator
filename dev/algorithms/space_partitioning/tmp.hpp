@@ -12,6 +12,31 @@
 
 #include <fstream>
 
+// TODO - produce a Readme.md for the dev work with some of the results.
+//      - explore adding noise to voronoi diagram
+//      - explore random voronoi cell aggregation, see if this is an 
+//        effective means for varying sizes (the weighted distance
+//        approach was not very effective)
+//      - explore clustered/non-uniform seed placement, this would 
+//        naturally lead to larger areas
+//      - explore starting with fewer cells and implementing random
+//        partitioning within a cell, i.e take cell after applying noise
+//        and start a random walk with a drift vector from a random 
+//        point on the boundary of the cell to "carve out" a new area
+//      - explore iterative carving, slight change on the random lines 
+//        approach, don't start new lines randomly anywhere start at 
+//        midpoints between existing junctions with some random adjustment 
+//      - snaky portions and pointy edges are the bane of it looking 
+//        natural. The cocos and Juan de Fuca plates are thin and wedged
+//        between other larger plates on Earth. Maybe there is some post
+//        processing that can be done to eliminate portions of regions 
+//        that start snaking by breaking the snaking part off into a new 
+//        region
+//      - some amount of the unbalanced voronoi could be used, especially 
+//        if fully contained regions are 'absorbed' into the parent region
+//        these are easy to identify by checking for disjoint loops in the
+//        boundary graph. An alpha value ~0.05 seems to be good for a little
+//        but not too much distortion of the base plot.
 namespace dev {
 
 struct Coordinate {
@@ -21,12 +46,26 @@ struct Coordinate {
     };
 };
 
+struct Edge {
+    Coordinate start, end;
+};
+
+struct OrderedEdge {
+    Edge edge;
+    int order;
+    bool operator<(const OrderedEdge& other) const {
+        return order < other.order;
+    }
+    OrderedEdge(Coordinate start, Coordinate end, int order) :
+        edge({start, end}), order(order) {};
+};
+
 struct OrderedCoordinate {
     Coordinate coord;
     int order;
     bool operator<(const OrderedCoordinate& other) const {
         return order < other.order;
-    };
+    }
 };
 
 struct CoordinateHash {
@@ -34,7 +73,7 @@ struct CoordinateHash {
         return std::hash<long long>{}(
             c.x * (INT_MAX + static_cast<long long>(1)) + c.y
         );
-    };
+    }
 };
 
 struct GridVertex {
@@ -60,11 +99,12 @@ public:
         double max_drift_change=0.18
     );
     void voronoi_partition(int xsize, int ysize, int num_seeds);
+    void unbalanced_voronoi_partition(int xsize, int ysize, int num_seeds, double alpha);
 
     std::vector<std::vector<Coordinate>> get_borderlines();
     std::vector<std::vector<int>> get_region_map();
     std::vector<std::vector<int>> get_border_map();
-    std::vector<Coordinate> get_traversal_history();
+    std::vector<Edge> get_traversal_history();
     std::unordered_map<Coordinate, GridVertex*, CoordinateHash> get_graph();
 
 private:
@@ -114,7 +154,18 @@ private:
         std::unordered_set<GridVertex*>& visited,
         GridVertex* node
     );
+    // A better algo would be Fortune's algorithm, if there's time for that
     void naive_voronoi(int num_seeds);
+    void unbalanced_voronoi(int num_seeds, double alpha);
+    std::vector<double> normally_distributed_seed_weights(
+        int num_seeds, double alpha, double min_weight = 1.0
+    );
+    std::vector<Coordinate> place_seeds_and_get_coords(int num_seeds);
+    Coordinate weighted_closest_seed(
+        std::vector<Coordinate>& seeds,
+        std::vector<double>& weights,
+        Coordinate c
+    );
     Coordinate closest_seed(
         std::vector<Coordinate>& seed_location,
         Coordinate c
@@ -126,17 +177,17 @@ private:
         Coordinate c
     );
 
-    inline int above(int y) {
-        return y - 1 < 0 ? ysize_ - 1 : y - 1;
-    }
-    inline int below(int y) {
-        return y + 1 < ysize_ ? y + 1 : 0;
-    }
-    inline int left(int x) {
+    inline int above(int x) {
         return x - 1 < 0 ? xsize_ - 1 : x - 1;
     }
-    inline int right(int x) {
+    inline int below(int x) {
         return x + 1 < xsize_ ? x + 1 : 0;
+    }
+    inline int left(int y) {
+        return y - 1 < 0 ? ysize_ - 1 : y - 1;
+    }
+    inline int right(int y) {
+        return y + 1 < ysize_ ? y + 1 : 0;
     }
 };
 

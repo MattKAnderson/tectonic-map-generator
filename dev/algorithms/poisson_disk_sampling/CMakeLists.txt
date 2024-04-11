@@ -1,0 +1,6 @@
+add_library(poisson_disk_sampler PoissonDiskSampler.cpp)
+target_include_directories(poisson_disk_sampler PUBLIC ./)
+target_link_libraries(poisson_disk_sampler PUBLIC Vector2D)
+
+add_executable(test_poisson_disk_sampler test.cpp)
+target_link_libraries(test_poisson_disk_sampler poisson_disk_sampler)

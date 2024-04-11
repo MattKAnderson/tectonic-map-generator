@@ -27,6 +27,7 @@ target_link_libraries(tectonicSimulation PUBLIC Vector2D::Vector2D)
 
 add_subdirectory(dev/algorithms/boundary_identification)
 add_subdirectory(dev/algorithms/space_partitioning)
+add_subdirectory(dev/algorithms/voronoi_diagram)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})

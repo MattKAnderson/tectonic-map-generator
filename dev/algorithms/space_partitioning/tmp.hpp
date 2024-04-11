@@ -12,6 +12,9 @@
 
 #include <fstream>
 
+// look into Lloyd relaxation
+
+
 // TODO - produce a Readme.md for the dev work with some of the results.
 //      - explore adding noise to voronoi diagram
 //      - explore random voronoi cell aggregation, see if this is an 
@@ -85,6 +88,22 @@ struct GridVertex {
         coord(c), visit_number(visit_number) {};
 };
 
+class LabelNode {
+public:
+    LabelNode(int label): label(label) {};
+    int get_label();
+    int edge_count();
+    LabelNode* traverse_edge(int n);
+    void add_adjacency(LabelNode* node);
+    void merge_adjacency(LabelNode* node);
+    void remove_adjacency(LabelNode* node);
+    void merge(LabelNode* node);
+
+private:
+    int label;
+    std::vector<LabelNode*> adjacent_nodes;
+};
+
 /*
  *  Class for partitioning a grid into regions using the desired method. 
  *  Results stored in the object.  
@@ -100,6 +119,8 @@ public:
     );
     void voronoi_partition(int xsize, int ysize, int num_seeds);
     void unbalanced_voronoi_partition(int xsize, int ysize, int num_seeds, double alpha);
+    void voronoi_aggregation_partition(int xsize, int ysize, int num_seeds, int num_regions);
+    void nested_voronoi_partition(int xsize, int ysize, std::vector<int> nseeds);
 
     std::vector<std::vector<Coordinate>> get_borderlines();
     std::vector<std::vector<int>> get_region_map();
@@ -172,6 +193,8 @@ private:
     );
     double euclidean_distance(Coordinate& c1, Coordinate& c2);
     double toroidal_distance(Coordinate& c1, Coordinate& c2);
+    void aggregate_voronoi_cells(int num_seeds, int num_regions);
+    std::vector<LabelNode> region_adjacencies(int num_regions);
     std::vector<Coordinate> adjacent_coords(Coordinate coord);
     std::vector<OrderedCoordinate> unassigned_adjacent_grid_cells(
         Coordinate c

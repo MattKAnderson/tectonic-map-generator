@@ -10,6 +10,45 @@ namespace Impl {
     std::vector<int> relabel(std::vector<int>& parent_labels);
 }
 
+int LabelNode::get_label() { 
+    return label;
+}
+
+int LabelNode::edge_count() {
+    return adjacent_nodes.size();
+}
+
+LabelNode* LabelNode::traverse_edge(int n) {
+    return adjacent_nodes[n];
+}
+
+void LabelNode::add_adjacency(LabelNode* node) {
+    adjacent_nodes.push_back(node);
+}
+
+void LabelNode::merge_adjacency(LabelNode* node) {
+    auto s = std::find(adjacent_nodes.begin(), adjacent_nodes.end(), node);
+    if (s == adjacent_nodes.end()) { 
+        adjacent_nodes.push_back(node); 
+    }
+}
+
+void LabelNode::remove_adjacency(LabelNode* node) {
+    auto s = std::find(adjacent_nodes.begin(), adjacent_nodes.end(), node);
+    if (s != adjacent_nodes.end()) { 
+        adjacent_nodes[s - adjacent_nodes.begin()] = adjacent_nodes.back();
+        adjacent_nodes.pop_back();
+    }
+}
+
+void LabelNode::merge(LabelNode* node) {
+    remove_adjacency(node);
+    for (LabelNode* adj : node->adjacent_nodes) {
+        adj->remove_adjacency(node);
+        adj->merge_adjacency(this);
+        merge_adjacency(adj);
+    }
+}
 
 SpacePartitioner::SpacePartitioner(int seed) {
     rng_ = std::mt19937_64(seed);
@@ -598,12 +637,27 @@ Coordinate SpacePartitioner::weighted_closest_seed(
 void SpacePartitioner::voronoi_partition(
     int xsize, int ysize, int num_seeds
 ) {
-    random_x_ = std::uniform_int_distribution(0, xsize);
-    random_y_ = std::uniform_int_distribution(0, ysize);
+    random_x_ = std::uniform_int_distribution(0, xsize - 1);
+    random_y_ = std::uniform_int_distribution(0, ysize - 1);
     xsize_ = xsize;
     ysize_ = ysize;
     initialize_containers();
     naive_voronoi(num_seeds);
+    convert_region_map_to_graph();
+    convert_graph_to_borderlines();
+    convert_borderlines_to_border_map();
+}
+
+void SpacePartitioner::voronoi_aggregation_partition(
+    int xsize, int ysize, int num_seeds, int num_regions
+) {
+    random_x_ = std::uniform_int_distribution(0, xsize - 1);
+    random_y_ = std::uniform_int_distribution(0, ysize - 1);
+    xsize_ = xsize;
+    ysize_ = ysize;
+    initialize_containers();
+    naive_voronoi(num_seeds);
+    aggregate_voronoi_cells(num_seeds, num_regions);
     convert_region_map_to_graph();
     convert_graph_to_borderlines();
     convert_borderlines_to_border_map();
@@ -672,6 +726,193 @@ double SpacePartitioner::toroidal_distance(
         dy = ysize_ - dy;
     }
     return std::sqrt(dx * dx + dy * dy);
+}
+
+void SpacePartitioner::aggregate_voronoi_cells(
+    int num_seeds, int num_regions
+) {
+    std::cout << "getting region adjacencies" << std::endl;
+
+    std::vector<LabelNode> region_nodes = region_adjacencies(num_seeds);
+
+    std::vector<int> region_indices(num_regions);
+    std::vector<int> region_parent(num_regions);
+    for (int i = 0; i < num_regions; i++) {
+        region_indices[i] = i;
+        region_parent[i] = i;
+    }
+
+    std::cout << "Starting to merge regions" << std::endl;
+
+    while (region_indices.size() > num_regions) {
+        std::uniform_int_distribution<int> region_selector{
+            0, region_indices.size() - 1
+        };
+        int region_id_id = region_selector(rng_);
+        LabelNode& region = region_nodes[region_indices[region_id_id]];
+        std::uniform_int_distribution<int> edge_selector{
+            0, region.edge_count() - 1
+        };
+        int edge = edge_selector(rng_);
+        LabelNode* parent_region = region.traverse_edge(edge);
+        parent_region->merge(&region);
+        region_parent[region.get_label()] = parent_region->get_label();
+        region_indices[region_id_id] = region_indices.back();
+        region_indices.pop_back();        
+    }
+
+    std::cout << "Relabelling" << std::endl;
+
+    std::vector<int> new_labels = Impl::relabel(region_parent);
+    for (int i = 0; i < xsize_; i++) {
+        for (int j = 0; j < ysize_; j++) {
+            region_map_[i][j] = new_labels[region_map_[i][j]];
+        }
+    }
+}
+
+
+std::vector<LabelNode> SpacePartitioner::region_adjacencies(int num_regions) {
+    
+    std::vector<std::vector<bool>> adjacency_matrix(
+        num_regions, std::vector<bool>(num_regions, false)
+    );
+
+    int this_label, right, right_label, below, below_label;
+    for (int i = 0; i < xsize_; i++) {
+        right = i + 1 ==  xsize_ ? 0 : i + 1;
+        for (int j = 0; j < ysize_; j++) {
+            below = j + 1 == ysize_ ? 0 : j + 1;
+            this_label = region_map_[i][j];
+            right_label = region_map_[right][j];
+            below_label = region_map_[i][below];
+            if (this_label != right_label) {
+                adjacency_matrix[this_label][right_label] = true;
+                adjacency_matrix[right_label][this_label] = true;
+            }
+            if (this_label != below_label) {
+                adjacency_matrix[this_label][below_label] = true;
+                adjacency_matrix[below_label][this_label] = true;
+            }
+        }
+    }
+    
+    std::vector<LabelNode> region_nodes;
+    region_nodes.reserve(num_regions);
+    for (int i = 0; i < num_regions; i++) {
+        region_nodes.emplace_back(i);
+    }
+
+    for (int i = 0; i < num_regions; i++) {
+        for (int j = 0; j < num_regions; j++) {
+            if (adjacency_matrix[i][j]) {
+                region_nodes[i].add_adjacency(&region_nodes[j]);
+            }
+        }
+    }
+
+    return region_nodes;
+}
+
+void SpacePartitioner::nested_voronoi_partition(
+    int xsize, int ysize, std::vector<int> nseeds
+) {
+    random_x_ = std::uniform_int_distribution(0, xsize - 1);
+    random_y_ = std::uniform_int_distribution(0, ysize - 1);
+    xsize_ = xsize;
+    ysize_ = ysize;
+    initialize_containers();
+    naive_voronoi(nseeds[0]);
+
+    std::cout << "Finished initial voronoi diagram" << std::endl;
+
+    std::vector<std::vector<int>> region_to_new_region;
+    std::vector<int> points_in_region(nseeds[0], 0);
+    std::vector<int> region_midx_sum(nseeds[0], 0);
+    std::vector<int> region_midy_sum(nseeds[0], 0);
+    for (int i = 0; i < xsize_; i++) {
+        for (int j = 0; j < ysize_; j++) {
+            int region = region_map_[i][j];
+            region_midx_sum[region] += i;
+            region_midy_sum[region] += j;
+            ++points_in_region[region];
+        }
+    }
+
+    std::cout << "Finished region midpoint summing" << std::endl;
+
+    for (int i = 1; i < nseeds.size(); i++) {
+        std::cout << "Starting nested iteration " << i << std::endl;
+        region_to_new_region.push_back({});
+        std::vector<int> region_midx(nseeds[i - 1]);
+        std::vector<int> region_midy(nseeds[i - 1]);
+        for (int j = 0; j < nseeds[i - 1]; j++) {
+            if (points_in_region[j] == 0) { continue; }
+            region_midx[j] = region_midx_sum[j] / points_in_region[j];
+            region_midy[j] = region_midy_sum[j] / points_in_region[j];
+        }
+        std::cout << "Finished computing region midpoints" << std::endl;
+
+        std::vector<Coordinate> seed_locations(nseeds[i]);
+        for (int j = 0; j < nseeds[i]; j++) {
+            int x = random_x_(rng_);
+            int y = random_y_(rng_);
+            seed_locations[j] = {x, y};
+        }
+        std::cout << "Finished assigning new random seeds" << std::endl;
+        for (int j = 0; j < nseeds[i - 1]; j++) {
+            int closest_id = 0;
+            Coordinate c(region_midx[j], region_midy[j]);
+            double shortest_dist = toroidal_distance(seed_locations[0], c);
+            for (int k = 1; k < nseeds[i]; k++) {
+                double dist = toroidal_distance(seed_locations[k], c);
+                if (dist < shortest_dist) {
+                    closest_id = k;
+                    shortest_dist = dist;
+                }
+            }
+            region_to_new_region.back().push_back(closest_id);
+        }
+        std::cout << "finished finding closest seed" << std::endl;
+        std::vector<int> new_points_in_region(nseeds[i], 0);
+        std::vector<int> new_region_midx_sum(nseeds[i], 0);
+        std::vector<int> new_region_midy_sum(nseeds[i], 0);
+        for (int j = 0; j < nseeds[i - 1]; j++) {
+            int id = region_to_new_region.back()[j];
+            new_points_in_region[id] += points_in_region[j];
+            new_region_midx_sum[id] += region_midx_sum[j];
+            new_region_midy_sum[id] += region_midy_sum[j];
+        }
+        points_in_region = std::move(new_points_in_region);
+        region_midx_sum = std::move(new_region_midx_sum);
+        region_midy_sum = std::move(new_region_midy_sum);
+    }
+
+    std::cout << "Starting region map compression" << std::endl;
+
+    std::vector<int> compressed_region_map(nseeds[0]);
+    for (int i = 0; i < nseeds[0]; i++) {
+        compressed_region_map[i] = i;
+    }
+    for (int i = 1; i < nseeds.size(); i++) {
+        for (int k = 0; k < nseeds[0]; k++) {
+            compressed_region_map[k] = region_to_new_region[i - 1][
+                compressed_region_map[k]
+            ];
+        }
+    }
+
+    std::cout << "Re-labelling region map" << std::endl;
+
+    for (int i = 0; i < xsize_; i++) {
+        for (int j = 0; j < ysize_; j++) {
+            region_map_[i][j] = compressed_region_map[region_map_[i][j]];
+        }
+    }
+    
+    convert_region_map_to_graph();
+    convert_graph_to_borderlines();
+    convert_borderlines_to_border_map();
 }
 
 void SpacePartitioner::convert_region_map_to_graph() {

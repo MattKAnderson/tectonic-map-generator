@@ -13,12 +13,13 @@ void vector_output(std::string filename, std::vector<T>& vec);
 
 int main() {
     
-    int xsize = 4096;
+    int xsize = 1024;
     int ysize = xsize;
-    int num_seeds = 16;
+    int num_seeds = 128;
+    int num_regions = 16;
     double alpha = 0.05; 
-    long long seed = 334127613415;
-
+    long long seed = 68533525;
+    std::vector<int> nseeds = {2048, 16};
     std::mt19937_64 rng(325);
     std::geometric_distribution dist(0.33);
 
@@ -27,9 +28,9 @@ int main() {
     dev::SpacePartitioner partitioner(seed);
 
     //partitioner.random_walk_partition(512, 512, 8, 0.03);
-    partitioner.unbalanced_voronoi_partition(xsize, ysize, num_seeds, alpha);
+    partitioner.nested_voronoi_partition(xsize, ysize, nseeds);
 
-    dev::SpacePartitioner partitioner2(seed);
+    //dev::SpacePartitioner partitioner2(seed);
 
     std::vector<std::vector<int>> region_map, border_map;
     std::vector<std::vector<dev::Coordinate>> borderlines;
@@ -39,7 +40,7 @@ int main() {
     borderlines = partitioner.get_borderlines();
     traversal_history = partitioner.get_traversal_history();
 
-
+/*
     timeIt::print(
         [](decltype(partitioner)& partitioner, int a, int b, int c, double alpha) {
             partitioner.unbalanced_voronoi_partition(a, b, c, alpha);
@@ -50,7 +51,7 @@ int main() {
         num_seeds,
         alpha
     );
-
+*/
 /*
     for (auto& [field, stat] : stats) {
         std::cout << field << ": " << stat << " ms" << std::endl;

@@ -29,6 +29,7 @@ add_subdirectory(dev/algorithms/boundary_identification)
 add_subdirectory(dev/algorithms/space_partitioning)
 add_subdirectory(dev/algorithms/voronoi_diagram)
 add_subdirectory(dev/algorithms/poisson_disk_sampling)
+add_subdirectory(dev/algorithms/polygon_center)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})

@@ -1,13 +1,4 @@
 
-/*
- *   Goal is to produce a method that determines a polygon center on a 
- *   surface that is not euclidean, e.g. a taurus surface or sphere
- * 
- *   Initial idea is to use a monte carlo approach
- */
-
-// core algorithm take a series of points and find the approximate point that
-// minimizes distance to all these points
 #include <iostream>
 #include <random>
 #include <vector>
@@ -15,6 +6,29 @@
 #include <Vector2D.hpp>
 
 
-Coordinate find_toroidal_centroid(
-    std::vector<Coordinate>& points, int xmax, int ymax, int iters, double k
-);
+class CentroidFinder {
+public:
+    CentroidFinder(int seed);
+    Coordinate toroidal_centroid(
+        std::vector<Coordinate>& points, int xmax, int ymax, 
+        int iters, int k, bool collect_metrics = false
+    );
+    std::vector<Coordinate> get_visit_history();
+    std::vector<double> get_total_dist_history();
+
+private:
+    std::mt19937_64 rng;
+    std::uniform_real_distribution<double> die{0.0, 1.0};
+    std::vector<Coordinate> visit_history;
+    std::vector<double> total_dist_history;
+
+    Coordinate toroidal_mc(
+        std::vector<Coordinate>& points, int xmax, int ymax, int iters, int k,
+        Coordinate point
+    );
+    Coordinate toroidal_mc_record_metrics(
+        std::vector<Coordinate>& points, int xmax, int ymax, int iters, int k,
+        Coordinate point
+    );
+};
+

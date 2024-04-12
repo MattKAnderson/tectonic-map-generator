@@ -1,7 +1,7 @@
 #include <polygon_center.hpp>
 
 
-double toroidal_distance(Coordinate c1, Coordinate c2, int xmax, int ymax) {
+double sq_toroidal_distance(Coordinate c1, Coordinate c2, int xmax, int ymax) {
 
     double dx = std::abs(c2.x - c1.x);
     if (dx > xmax / 2) {
@@ -11,16 +11,16 @@ double toroidal_distance(Coordinate c1, Coordinate c2, int xmax, int ymax) {
     if (dy > ymax / 2) {
         dy = ymax - dy;
     }
-    return std::sqrt(dx * dx + dy * dy);
+    return dx * dx + dy * dy;
 }
 
 
-double distance_sum(
+double toroidal_distance_sum(
     Coordinate c, std::vector<Coordinate>& points, int xmax, int ymax
 ) {
     double sum = 0.0;
     for (int i = 0; i < points.size(); i++) {
-        sum += toroidal_distance(c, points[i], xmax, ymax);
+        sum += sq_toroidal_distance(c, points[i], xmax, ymax);
     }
     return sum;
 }
@@ -32,7 +32,7 @@ double chance(double dist, double last_dist, double k) {
 }
 
 
-std::vector<Coordinate> adjacent_grid_cells(
+std::vector<Coordinate> toroidal_adjacent_grid_cells(
     Coordinate& c, int xmax, int ymax
 ) {
     std::vector<Coordinate> adjacents;
@@ -51,14 +51,14 @@ std::vector<Coordinate> adjacent_grid_cells(
     return adjacents;
 }
 
+CentroidFinder::CentroidFinder(int seed) {
+    rng = std::mt19937_64(seed);
+}
 
-Coordinate find_toroidal_centroid(
-    std::vector<Coordinate>& points, int xmax, int ymax, int iters, double k
+Coordinate CentroidFinder::toroidal_centroid(
+    std::vector<Coordinate>& points, int xmax, int ymax, int iters, int k, 
+    bool collect_metrics
 ) {
-    // get this as a parameter later
-    std::mt19937_64 rng(129129);
-    std::uniform_real_distribution<double> die(0, 1.0);
-
     if (points.size() == 0) {
         std::cout << "No points given" << std::endl;
         return {0, 0};
@@ -72,29 +72,77 @@ Coordinate find_toroidal_centroid(
     int start_x = (points[0].x + points[1].x) / 2;
     int start_y = (points[0].y + points[1].y) / 2;
     Coordinate candidate(start_x, start_y);
-    double total_dist = distance_sum(candidate, points, xmax, ymax);
 
-    // dumb implementation to start that can only move one grid
-    // cell at a time
-    // just iterate a certain number of times. Can determine exit 
-    // conditions later, can save agrgegate distances when this
-    // gets converted to a class later... 
+    visit_history = {};
+    total_dist_history = {};
+    if (collect_metrics) {
+        return toroidal_mc_record_metrics(
+            points, xmax, ymax, iters, k, candidate
+        );
+    }
+    else {
+        return toroidal_mc(points, xmax, ymax, iters, k, candidate);
+    }
+}
 
+std::vector<Coordinate> CentroidFinder::get_visit_history() {
+    return visit_history;
+}
+
+std::vector<double> CentroidFinder::get_total_dist_history() {
+    return total_dist_history;
+}
+
+Coordinate CentroidFinder::toroidal_mc(
+        std::vector<Coordinate>& points, int xmax, int ymax, int iters, int k,
+        Coordinate point
+) {
+    double total_dist = toroidal_distance_sum(point, points, xmax, ymax);
+    
     for (int i = 0; i < iters; i++) {
         std::vector<Coordinate> candidates;
-        candidates = adjacent_grid_cells(candidate, xmax, ymax);
+        candidates = toroidal_adjacent_grid_cells(point, xmax, ymax);
         
         std::uniform_int_distribution<int> dist(0, candidates.size() - 1);
-        Coordinate prospect = candidates[dist(rng)];
+        Coordinate candidate = candidates[dist(rng)];
 
-        double prospect_dist = distance_sum(prospect, points, xmax, ymax);
-        if (chance(prospect_dist, total_dist, k) > die(rng)) {
-            //std::cout << "prospect dist: " << prospect_dist << "  total dist: " << total_dist
-            //          << "  chance: " << chance(prospect_dist, total_dist, k) << std::endl; 
-            candidate = prospect;
-            total_dist = prospect_dist;
+        double candidate_dist = toroidal_distance_sum(
+            candidate, points, xmax, ymax
+        );
+        if (chance(candidate_dist, total_dist, k) > die(rng)) {
+            point = candidate;
+            total_dist = candidate_dist;
         }
     }
 
-    return candidate;
+    return point;
+}
+
+Coordinate CentroidFinder::toroidal_mc_record_metrics(
+        std::vector<Coordinate>& points, int xmax, int ymax, int iters, int k,
+        Coordinate point
+) {
+    double total_dist = toroidal_distance_sum(point, points, xmax, ymax);
+    visit_history.push_back(point);
+    total_dist_history.push_back(total_dist);
+
+    for (int i = 0; i < iters; i++) {
+        std::vector<Coordinate> candidates;
+        candidates = toroidal_adjacent_grid_cells(point, xmax, ymax);
+        
+        std::uniform_int_distribution<int> dist(0, candidates.size() - 1);
+        Coordinate candidate = candidates[dist(rng)];
+
+        double candidate_dist = toroidal_distance_sum(
+            candidate, points, xmax, ymax
+        );
+        if (chance(candidate_dist, total_dist, k) > die(rng)) {
+            point = candidate;
+            total_dist = candidate_dist;
+            visit_history.push_back(point);
+            total_dist_history.push_back(total_dist);
+        }
+    }
+
+    return point;
 }

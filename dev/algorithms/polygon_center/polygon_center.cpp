@@ -74,7 +74,7 @@ Coordinate CentroidFinder::toroidal_centroid(
     Coordinate candidate(start_x, start_y);
 
     visit_history = {};
-    total_dist_history = {};
+    cost_history = {};
     if (collect_metrics) {
         return toroidal_mc_record_metrics(
             points, xmax, ymax, iters, k, candidate
@@ -89,8 +89,8 @@ std::vector<Coordinate> CentroidFinder::get_visit_history() {
     return visit_history;
 }
 
-std::vector<double> CentroidFinder::get_total_dist_history() {
-    return total_dist_history;
+std::vector<double> CentroidFinder::get_cost_history() {
+    return cost_history;
 }
 
 Coordinate CentroidFinder::toroidal_mc(
@@ -124,7 +124,7 @@ Coordinate CentroidFinder::toroidal_mc_record_metrics(
 ) {
     double total_dist = toroidal_distance_sum(point, points, xmax, ymax);
     visit_history.push_back(point);
-    total_dist_history.push_back(total_dist);
+    cost_history.push_back(total_dist);
 
     for (int i = 0; i < iters; i++) {
         std::vector<Coordinate> candidates;
@@ -140,7 +140,7 @@ Coordinate CentroidFinder::toroidal_mc_record_metrics(
             point = candidate;
             total_dist = candidate_dist;
             visit_history.push_back(point);
-            total_dist_history.push_back(total_dist);
+            cost_history.push_back(total_dist);
         }
     }
 

@@ -1,3 +1,5 @@
+add_subdirectory(point_in_polygon)
+
 add_library(polygon_center polygon_center.cpp)
 target_include_directories(polygon_center PUBLIC ./)
 target_link_libraries(polygon_center PUBLIC Vector2D)

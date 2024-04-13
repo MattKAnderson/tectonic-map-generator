@@ -1,0 +1,5 @@
+add_library(point_in_polygon point_in_polygon.cpp)
+target_include_directories(point_in_polygon PUBLIC ./)
+
+add_executable(test_point_in_polygon test.cpp)
+target_link_libraries(test_point_in_polygon point_in_polygon)

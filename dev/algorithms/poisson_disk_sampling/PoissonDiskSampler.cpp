@@ -77,12 +77,8 @@ std::vector<Vector2D<double>> PoissonDiskSampler::fill(double radius, int k) {
     int idy = active.back().y * inv_cell_length;
     grid[idx][idy] = 0;
 
-    //int counter = 0;
-
     while (!active.empty()) {
 
-        //if (counter++ == 10) { break; }
-        
         std::uniform_int_distribution<int> progenitor_selector(
             0, active.size() - 1
         );
@@ -111,7 +107,6 @@ std::vector<Vector2D<double>> PoissonDiskSampler::fill(double radius, int k) {
             active.pop_back();
         }
     }
-    std::cout << "Number of samples: " << samples.size() << std::endl;
     return samples;
 }
 

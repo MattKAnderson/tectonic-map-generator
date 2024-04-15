@@ -1,0 +1,5 @@
+add_subdirectory(boundary_identification)
+add_subdirectory(poisson_disk_sampling)
+add_subdirectory(polygon_center)
+add_subdirectory(space_partitioning)
+add_subdirectory(voronoi_diagram)

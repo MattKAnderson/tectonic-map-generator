@@ -41,13 +41,13 @@ int main() {
 
     std::vector<Coordinate> wrapped_centroid = {centroid};
     auto visit_history = centroid_finder.get_visit_history();
-    auto total_dist_history = centroid_finder.get_total_dist_history();
+    auto cost_history = centroid_finder.get_cost_history();
 
     std::cout << "The centroid found is: (" << centroid.x << ", " 
               << centroid.y << ")\n";
 
     vector_output("visit_history.json", visit_history);
-    vector_output("cost_history.json", total_dist_history);
+    vector_output("cost_history.json", cost_history);
     vector_output("sample_points.json", points);
     vector_output("centroid.json", wrapped_centroid);
 }

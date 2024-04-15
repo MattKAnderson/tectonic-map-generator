@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <Coordinate.hpp>
+#include <Vector2D.hpp>     //need to wrap this header as it's own library
 
 template<typename T>
 std::string to_json(const T& t) {

@@ -6,3 +6,6 @@ target_link_libraries(polygon_center PUBLIC Vector2D)
 
 add_executable(test_polygon_center test.cpp)
 target_link_libraries(test_polygon_center polygon_center)
+
+add_executable(polygon_center_example example.cpp)
+target_link_libraries(polygon_center_example polygon_center point_in_polygon)

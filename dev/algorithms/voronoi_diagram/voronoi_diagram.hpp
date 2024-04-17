@@ -1,7 +1,16 @@
 #pragma once
+#include <algorithm>
+#include <queue>
 #include <vector>
 #include <random>
 #include <Coordinate.hpp>
+
+
+struct Node {
+    RealCoordinate coord;
+    std::vector<Node*> edges;
+};
+
 
 class VoronoiDiagram {
 public:
@@ -18,5 +27,11 @@ public:
 private:
     std::mt19937_64 rng;
     std::vector<std::vector<int>> diagram;
+    std::vector<Node> vertices;
+    std::vector<Node> delauney_triangulation;
     int nregions;
+
+    void fortunes_algorithm(
+        std::vector<RealCoordinate>& seeds, int xsize, int ysize
+    );
 };

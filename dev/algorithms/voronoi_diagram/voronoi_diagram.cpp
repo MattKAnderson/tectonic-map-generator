@@ -71,6 +71,72 @@ std::vector<std::vector<int>> generate_diagram_from_seeds(
 }
 
 
+struct Event {
+    RealCoordinate coord;
+    bool is_site;
+    bool operator< (Event& other) {
+        return (
+            coord.x < other.coord.x 
+            || coord.x == other.coord.x && coord.y < other.coord.y
+        ); 
+    }
+    bool operator> (Event& other) {
+        return (
+            coord.x > other.coord.x
+            || coord.x == other.coord.x && coord.y > other.coord.y 
+        );
+    }
+    bool operator== (Event& other) {
+        return coord.x == other.coord.x && coord.y == other.coord.y;
+    }
+};
+
+
+RealCoordinate triangle_centroid(
+    RealCoordinate& a, RealCoordinate& b, RealCoordinate& c
+) {
+    return {(a.x + b.x + c.x) / 3.0, (a.y + b.y + c.y) / 3.0};
+}
+
+
+RealCoordinate intercept(
+    RealCoordinate& l1a, RealCoordinate& l1b, 
+    RealCoordinate& l2a, RealCoordinate& l2b
+) {
+    double m1 = (l1b.y - l1a.y) / (l1b.x - l1a.x);
+    double b1 = l1a.y - m1 * l1a.x;
+    double m2 = (l2b.y - l2a.y) / (l2b.x -l2a.x);
+    double b2 = l2a.y - m2 * l2a.x;
+    double x0 = (b2 - b1) / (m1 - m2);
+    double y0 = m1 * x0 + b1;
+    return {x0, y0};
+}
+
+
+RealCoordinate parabola_intercept(
+    double directrix, RealCoordinate& focus1, RealCoordinate& focus2
+) {
+    return {};
+}
+
+
+void VoronoiDiagram::fortunes_algorithm(
+    std::vector<RealCoordinate>& seeds, int xsize, int ysize
+) {
+    std::priority_queue<Event, 
+                        std::vector<Event>, 
+                        std::greater<Event>> event_queue;
+    
+    for (RealCoordinate& seed : seeds) {
+        event_queue.push(Event(seed, true));
+    }
+
+    Event first_site = event_queue.top();
+
+
+}
+
+
 std::vector<Coordinate> compute_voronoi_cell_centroids(
     std::vector<std::vector<int>>& diagram, int ncells
 ) {

@@ -2,6 +2,11 @@
 #include <vector>
 #include <limits>
 
+
+struct RealCoordinate {
+    double x, y;
+};
+
 struct Coordinate {
     int x, y;
     bool operator==(const Coordinate& other) const {

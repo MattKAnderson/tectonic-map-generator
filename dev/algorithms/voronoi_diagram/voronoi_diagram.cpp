@@ -1,143 +1,50 @@
 #include <voronoi_diagram.hpp>
 
+/*
+double compute_edge_y_val(BeachlineNode* node) {
+    RealCoordinate& upper_focus = find_left_child(node)->coord;
+    RealCoordinate& lower_focus = find_right_child(node)->coord;
 
-std::vector<Coordinate> generate_seeds(
-    int nseeds, int xsize, int ysize, std::mt19937_64& rng
-) {
-    std::uniform_int_distribution random_x(0, xsize - 1);
-    std::uniform_int_distribution random_y(0, ysize - 1);
-    std::vector<Coordinate> seeds;
-    seeds.reserve(nseeds);
-    for (int i = 0; i < nseeds; i++) {
-        int x = random_x(rng);
-        int y = random_y(rng);
-        seeds.emplace_back(x, y);
-    }
-    return seeds;
+}
+*/
+
+
+VoronoiDiagram::VoronoiDiagram(int seed) {
+    rng = std::mt19937_64(seed);
 }
 
 
-double euclidean_distance(Coordinate c1, Coordinate c2) {
-    double dx = c1.x - c2.x;
-    double dy = c1.y - c2.y;
-    return std::sqrt(dx * dx + dy*dy);
+void VoronoiDiagram::generate(int xsize, int ysize, int nseeds) {
+    nregions = nseeds;
+    std::vector<RealCoordinate> seeds = generate_seeds(nseeds, xsize, ysize);
+    grid_algorithm(seeds, xsize, ysize);
 }
 
 
-double toroidal_distance(
-    Coordinate c1, Coordinate c2, int xsize, int ysize
-) {
-    double dx = std::abs(c1.x - c2.x);
-    if (dx > xsize / 2) {
-        dx = xsize - dx;
-    }
-    double dy = std::abs(c1.y - c2.y);
-    if (dy > ysize / 2) {
-        dy = ysize - dy;
-    }
-    return std::sqrt(dx * dx + dy * dy);
-}
-
-
-int find_closest_id(Coordinate point, std::vector<Coordinate>& points) {
-    int closest_id = 0;
-    double shortest_dist = euclidean_distance(points[0], point);
-    for (int i = 1; i < points.size(); i++) {
-        double dist = euclidean_distance(points[i], point);
-        if (dist < shortest_dist) {
-            closest_id = i;
-            shortest_dist = dist;
-        }
-    }
-    return closest_id;
-}
-
-
-std::vector<std::vector<int>> generate_diagram_from_seeds(
-    std::vector<Coordinate>& seeds, int xsize, int ysize
-) {
-    std::vector<std::vector<int>> diagram(xsize, std::vector<int>(ysize, -1));
-    for (int i = 0; i < seeds.size(); ++i) {
-        diagram[seeds[i].x][seeds[i].y] = i;
-    }
-    for (int i = 0; i < xsize; i++) {
-        for (int j = 0; j < ysize; j++) {
-            if (diagram[i][j] == -1) {
-                diagram[i][j] = find_closest_id({i, j}, seeds);
-            }
-        }
-    }
-    return diagram;
-}
-
-
-struct Event {
-    RealCoordinate coord;
-    bool is_site;
-    bool operator< (Event& other) {
-        return (
-            coord.x < other.coord.x 
-            || coord.x == other.coord.x && coord.y < other.coord.y
-        ); 
-    }
-    bool operator> (Event& other) {
-        return (
-            coord.x > other.coord.x
-            || coord.x == other.coord.x && coord.y > other.coord.y 
-        );
-    }
-    bool operator== (Event& other) {
-        return coord.x == other.coord.x && coord.y == other.coord.y;
-    }
-};
-
-
-RealCoordinate triangle_centroid(
-    RealCoordinate& a, RealCoordinate& b, RealCoordinate& c
-) {
-    return {(a.x + b.x + c.x) / 3.0, (a.y + b.y + c.y) / 3.0};
-}
-
-
-RealCoordinate intercept(
-    RealCoordinate& l1a, RealCoordinate& l1b, 
-    RealCoordinate& l2a, RealCoordinate& l2b
-) {
-    double m1 = (l1b.y - l1a.y) / (l1b.x - l1a.x);
-    double b1 = l1a.y - m1 * l1a.x;
-    double m2 = (l2b.y - l2a.y) / (l2b.x -l2a.x);
-    double b2 = l2a.y - m2 * l2a.x;
-    double x0 = (b2 - b1) / (m1 - m2);
-    double y0 = m1 * x0 + b1;
-    return {x0, y0};
-}
-
-
-RealCoordinate parabola_intercept(
-    double directrix, RealCoordinate& focus1, RealCoordinate& focus2
-) {
-    return {};
-}
-
-
-void VoronoiDiagram::fortunes_algorithm(
+void VoronoiDiagram::generate_from_seeds(
     std::vector<RealCoordinate>& seeds, int xsize, int ysize
 ) {
-    std::priority_queue<Event, 
-                        std::vector<Event>, 
-                        std::greater<Event>> event_queue;
-    
-    for (RealCoordinate& seed : seeds) {
-        event_queue.push(Event(seed, true));
-    }
-
-    Event first_site = event_queue.top();
-
-
+    nregions = seeds.size();
+    grid_algorithm(seeds, xsize, ysize);
 }
 
 
-std::vector<Coordinate> compute_voronoi_cell_centroids(
+void VoronoiDiagram::lloyd_iteration() {
+    std::vector<RealCoordinate> new_seeds;
+    new_seeds = compute_voronoi_cell_centroids(diagram, nregions);
+    grid_algorithm(new_seeds, diagram.size(), diagram[0].size());
+}
+
+
+void VoronoiDiagram::nesting_iteration(int nseeds) {
+    std::vector<RealCoordinate> seeds = generate_seeds(
+        nseeds, diagram.size(), diagram[0].size()
+    );
+    nesting_iteration_from_seeds(seeds);
+}
+
+
+std::vector<RealCoordinate> compute_voronoi_cell_centroids(
     std::vector<std::vector<int>>& diagram, int ncells
 ) {
     std::vector<int> pixel_counts(ncells, 0);
@@ -151,62 +58,25 @@ std::vector<Coordinate> compute_voronoi_cell_centroids(
             ++pixel_counts[cell];
         }
     }
-    std::vector<Coordinate> centroids;
+    std::vector<RealCoordinate> centroids;
     centroids.reserve(ncells);
     for (int i = 0; i < ncells; i++) {
         if (pixel_counts[i] == 0) {
             continue;
         }
         centroids.emplace_back(
-            x_sums[i] / pixel_counts[i],
-            y_sums[i] / pixel_counts[i]
+            static_cast<double>(x_sums[i]) / pixel_counts[i],
+            static_cast<double>(y_sums[i]) / pixel_counts[i]
         );
     }
     return centroids;
 }
 
 
-VoronoiDiagram::VoronoiDiagram(int seed) {
-    rng = std::mt19937_64(seed);
-}
-
-
-void VoronoiDiagram::generate(int xsize, int ysize, int nseeds) {
-    nregions = nseeds;
-    std::vector<Coordinate> seeds = generate_seeds(nseeds, xsize, ysize, rng);
-    diagram = generate_diagram_from_seeds(seeds, xsize, ysize);
-}
-
-
-void VoronoiDiagram::generate_from_seeds(
-    std::vector<Coordinate>& seeds, int xsize, int ysize
-) {
-    nregions = seeds.size();
-    diagram = generate_diagram_from_seeds(seeds, xsize, ysize);
-}
-
-
-void VoronoiDiagram::lloyd_iteration() {
-    std::vector<Coordinate> new_seeds;
-    new_seeds = compute_voronoi_cell_centroids(diagram, nregions);
-    diagram = generate_diagram_from_seeds(
-        new_seeds, diagram.size(), diagram[0].size()
-    );
-}
-
-
-void VoronoiDiagram::nesting_iteration(int nseeds) {
-    std::vector<Coordinate> seeds = generate_seeds(
-        nseeds, diagram.size(), diagram[0].size(), rng
-    );
-    nesting_iteration_from_seeds(seeds);
-}
-
-
 void VoronoiDiagram::nesting_iteration_from_seeds(
-    std::vector<Coordinate>& seeds
+    std::vector<RealCoordinate>& seeds
 ) {
-    std::vector<Coordinate> centroids;
+    std::vector<RealCoordinate> centroids;
     centroids = compute_voronoi_cell_centroids(diagram, nregions);
     std::vector<int> region_id_map(centroids.size(), -1);
     for (int i = 0; i < centroids.size(); i++) {
@@ -225,3 +95,220 @@ std::vector<std::vector<int>> VoronoiDiagram::get_diagram() {
     return diagram;
 }
 
+
+void VoronoiDiagram::fortunes_algorithm(
+    std::vector<RealCoordinate>& seeds, int xsize, int ysize
+) {
+    std::priority_queue<FortunesAlgoEvent, 
+                        std::vector<FortunesAlgoEvent>, 
+                        std::greater<FortunesAlgoEvent>> event_queue;
+
+    std::unordered_set<RealCoordinate> deleted_events;
+    for (RealCoordinate& seed : seeds) {
+        event_queue.push(FortunesAlgoEvent(seed));
+    }
+    BeachLine beach_line(event_queue.top().coord); 
+    event_queue.pop();
+
+    while (!event_queue.empty()) {
+        const FortunesAlgoEvent& next_event = event_queue.top();
+        if (next_event.intersect_point == nullptr) {
+            BeachLineItem* new_region = beach_line.split_region(
+                beach_line.find_intersected_region(next_event.coord),
+                next_event.coord
+            );
+
+        }
+        else {
+
+        }
+    }
+
+}
+
+
+
+int find_closest_id(RealCoordinate point, std::vector<RealCoordinate>& points) {
+    int closest_id = 0;
+    double shortest_dist = euclidean_distance(points[0], point);
+    for (int i = 1; i < points.size(); i++) {
+        double dist = euclidean_distance(points[i], point);
+        if (dist < shortest_dist) {
+            closest_id = i;
+            shortest_dist = dist;
+        }
+    }
+    return closest_id;
+}
+
+
+void VoronoiDiagram::grid_algorithm(
+    std::vector<RealCoordinate>& seeds, int xsize, int ysize
+) {
+    for (int i = 0; i < seeds.size(); ++i) {
+        diagram[seeds[i].x][seeds[i].y] = i;
+    }
+    for (int i = 0; i < xsize; i++) {
+        for (int j = 0; j < ysize; j++) {
+            if (diagram[i][j] == -1) {
+                diagram[i][j] = find_closest_id(
+                    {static_cast<double>(i), static_cast<double>(j)}, seeds
+                );
+            }
+        }
+    }
+    
+}
+
+
+std::vector<RealCoordinate> VoronoiDiagram::generate_seeds(
+    int nseeds, int xsize, int ysize
+) {
+    std::uniform_real_distribution random_x(0, xsize - 1);
+    std::uniform_real_distribution random_y(0, ysize - 1);
+    std::vector<RealCoordinate> seeds;
+    seeds.reserve(nseeds);
+    for (int i = 0; i < nseeds; i++) {
+        int x = random_x(rng);
+        int y = random_y(rng);
+        seeds.emplace_back(x, y);
+    }
+    return seeds;
+}
+
+
+BeachLineItem* BeachLine::find_intersected_region(const RealCoordinate& loc) {
+    if (head == nullptr || head->left == nullptr) {
+        return head;
+    }
+
+    BeachLineItem* node = head;
+    while (node->left != nullptr) {
+        RealCoordinate& focus_a = *get_upper_region(node)->coord;
+        RealCoordinate& focus_b = *get_lower_region(node)->coord;
+        double y = parabolae_y_intercept(loc.x, focus_a, focus_b);
+        if (loc.y > y) {
+            node = node->left;
+        }
+        else if (loc.y < y) {
+            node = node->right;
+        }
+        else {
+            // TODO: proper handling of the degenerate case
+            std::cout << "Hit degenerate case, treating as loc.y < y\n";
+            node = node->right;
+        }
+    }
+    return node;
+}
+
+
+BeachLineItem* BeachLine::get_upper_edge(BeachLineItem* node) {
+    BeachLineItem* parent = node->parent;
+    while (parent != nullptr && parent->right != node) {
+        node = parent;
+        parent = parent->parent;
+    }
+    return parent;
+}
+
+
+BeachLineItem* BeachLine::get_lower_edge(BeachLineItem* node) {
+    BeachLineItem* parent = node->parent;
+    while (parent != nullptr && parent->left != node) {
+        node = parent;
+        parent = parent->parent;
+    }
+    return parent;
+}
+
+
+BeachLineItem* BeachLine::get_upper_region(BeachLineItem* node) {
+    node = node->left;
+    while (node->right != nullptr) { node = node->right; }
+    return node;
+}
+
+
+BeachLineItem* BeachLine::get_lower_region(BeachLineItem* node) {
+    node = node->right;
+    while (node->left != nullptr) { node = node->left; }
+    return node;
+}
+
+
+BeachLineItem* add_subtree(BeachLineItem* region, const RealCoordinate& focus) {
+    BeachLineItem* left_edge = new BeachLineItem();
+    BeachLineItem* right_edge = new BeachLineItem();
+    BeachLineItem* new_region = new BeachLineItem(focus);
+    BeachLineItem* right_region = new BeachLineItem(*region->coord);
+    left_edge->left = region;
+    region->parent = left_edge;
+    left_edge->right = right_edge;
+    right_edge->parent = left_edge;
+    right_edge->left = new_region;
+    new_region->parent = right_edge;
+    right_edge->right = right_region;
+    right_region->parent = right_edge;
+    return left_edge;
+}
+
+
+BeachLineItem* BeachLine::split_region(
+    BeachLineItem* region, const RealCoordinate& focus
+) {
+    if (region == head) {
+        head = add_subtree(region, focus);
+        return head;
+    }
+    
+    BeachLineItem* parent = head->parent;
+    if (parent->left == region) {
+        parent->left = add_subtree(region, focus);
+        return parent->left;
+    }   
+    else {
+        parent->right = add_subtree(region, focus);
+        return parent->right;
+    } 
+}
+
+
+BeachLineItem* BeachLine::close_region(BeachLineItem* region) {
+    BeachLineItem* parent = region->parent;
+    BeachLineItem* grand_parent = parent->parent;
+    BeachLineItem* other_child;
+    other_child = (region == parent->left) ? parent->right : parent->left;
+    other_child->parent = grand_parent;
+    if (grand_parent->left == parent) {
+        grand_parent->left = other_child;
+    }
+    else {
+        grand_parent->right = other_child;
+    }
+    delete parent;
+    delete region;
+    return grand_parent;
+}
+
+
+BeachLineItem* BeachLine::get_region_2_upper(BeachLineItem* region) {
+    BeachLineItem* node = get_upper_edge(region);
+    // if (node == nullptr) { return node; } -- Will never be called for this case
+    node = get_upper_region(node);
+    node = get_upper_edge(node);
+    if (node == nullptr) { return node; }
+    node = get_upper_region(node);
+    return node;
+}
+
+
+BeachLineItem* BeachLine::get_region_2_lower(BeachLineItem* region) {
+    BeachLineItem* node = get_lower_edge(region);
+    // if (node == nullptr) { return node; } -- Will never be called for this case
+    node = get_lower_region(node);
+    node = get_lower_edge(node);
+    if (node == nullptr) { return node; }
+    node = get_lower_region(node);
+    return node;
+}

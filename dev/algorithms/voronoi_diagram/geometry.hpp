@@ -16,7 +16,11 @@ bool is_between(double x, double a, double b);
 
 RealCoordinate triangle_centroid(
     RealCoordinate& a, RealCoordinate& b, RealCoordinate& c
-); 
+);
+
+RealCoordinate triangle_centroid(
+    RealCoordinate& a, RealCoordinate& b, RealCoordinate& c
+);
 
 RealCoordinate lines_intercept(
     RealCoordinate& l1a, RealCoordinate& l1b, 

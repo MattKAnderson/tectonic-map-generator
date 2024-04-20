@@ -30,6 +30,24 @@ RealCoordinate triangle_centroid(
 }
 
 
+RealCoordinate triangle_centroid(
+    RealCoordinate& p1, RealCoordinate& p2, RealCoordinate& p3
+) {
+    double a = p1.x - p2.x;
+    double b = p1.x - p2.y;
+    double c = p2.x - p3.x;
+    double d = p2.y - p3.y;
+    double u = 0.5 * (p1.x * p1.x + p1.y * p1.y - p2.x * p2.x - p2.y * p2.y);
+    double v = 0.5 * (p2.x * p2.x + p2.y * p2.y - p3.x * p3.x - p3.y * p3.y);
+
+    double inv_denominator = 1.0 / (a * d - b * c);
+    double x = (d * u - b * v)  * inv_denominator;
+    double y = (a * v - c * u) * inv_denominator;
+
+    return {x, y};
+}
+
+
 RealCoordinate lines_intercept(
     RealCoordinate& l1a, RealCoordinate& l1b, 
     RealCoordinate& l2a, RealCoordinate& l2b

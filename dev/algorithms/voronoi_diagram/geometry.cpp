@@ -30,7 +30,7 @@ RealCoordinate triangle_centroid(
 }
 
 
-RealCoordinate triangle_centroid(
+RealCoordinate triangle_circumcenter(
     RealCoordinate& p1, RealCoordinate& p2, RealCoordinate& p3
 ) {
     double a = p1.x - p2.x;
@@ -64,14 +64,6 @@ RealCoordinate lines_intercept(
 
 RealCoordinate midpoint(RealCoordinate& a, RealCoordinate& b) {
     return {(a.x + b.x) / 2.0, (a.y + b.y) / 2.0};
-}
-
-
-// TODO
-RealCoordinate triangle_circumcircle_center(
-    RealCoordinate& a, RealCoordinate& b, RealCoordinate& c
-) {
-    return {};
 }
 
 

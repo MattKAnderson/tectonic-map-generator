@@ -18,7 +18,7 @@ RealCoordinate triangle_centroid(
     RealCoordinate& a, RealCoordinate& b, RealCoordinate& c
 );
 
-RealCoordinate triangle_centroid(
+RealCoordinate triangle_circumcenter(
     RealCoordinate& a, RealCoordinate& b, RealCoordinate& c
 );
 
@@ -29,12 +29,7 @@ RealCoordinate lines_intercept(
 
 RealCoordinate midpoint(RealCoordinate& a, RealCoordinate& b); 
 
-RealCoordinate triangle_circumcircle_center(
-    RealCoordinate& a, RealCoordinate& b, RealCoordinate& c
-);
-
 std::vector<double> quadratic_roots(double a, double b, double c);
-
 
 double parabola_x_from_y(double directrix, RealCoordinate& focus,double y);
 

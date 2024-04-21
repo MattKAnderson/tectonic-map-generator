@@ -5,7 +5,7 @@
 #include <queue>
 #include <vector>
 #include <random>
-#include <unordered_set>
+#include <unordered_map>
 #include <Coordinate.hpp>
 #include <geometry.hpp>
 
@@ -13,6 +13,23 @@
 struct Node {
     RealCoordinate coord;
     std::vector<Node*> edges;
+    Node(const RealCoordinate& coord): coord(coord) {};
+    bool operator==(const Node& other) const { return coord == other.coord; }
+};
+
+
+namespace std {
+template <>
+struct hash<Node> {
+    size_t operator()(const Node& n) const {
+        return hash<RealCoordinate>()(n.coord);
+    }
+};   
+}
+
+
+struct LineSegment {
+    RealCoordinate a, b;
 };
 
 
@@ -32,7 +49,7 @@ private:
     std::mt19937_64 rng;
     std::vector<std::vector<int>> diagram;
     std::vector<Node> vertices;
-    std::vector<Node> delauney_triangulation;
+    std::vector<Node> regions;
     int nregions;
 
     void fortunes_algorithm(
@@ -47,28 +64,12 @@ private:
 };
 
 
-struct FortunesAlgoEvent {
-    RealCoordinate coord;
-    RealCoordinate* intersect_point = nullptr;
-    FortunesAlgoEvent(RealCoordinate& coord);
-    FortunesAlgoEvent(RealCoordinate& coord, RealCoordinate& intersect);
-    FortunesAlgoEvent(const FortunesAlgoEvent& other);
-    ~FortunesAlgoEvent();
-    FortunesAlgoEvent& operator=(const FortunesAlgoEvent& other);
-    bool operator< (const FortunesAlgoEvent& other) const;
-    bool operator> (const FortunesAlgoEvent& other) const;
-    bool operator== (const FortunesAlgoEvent& other) const;
-};
-
-
 struct BeachLineItem {
-    RealCoordinate* coord = nullptr;
+    RealCoordinate coord; // focus for regions, base for edges
     BeachLineItem* left = nullptr;
     BeachLineItem* right = nullptr;
     BeachLineItem* parent = nullptr;
-    BeachLineItem() {};
     BeachLineItem(const RealCoordinate& coord);
-    ~BeachLineItem();
     BeachLineItem(const BeachLineItem&) = delete;
     BeachLineItem& operator=(const BeachLineItem&) = delete;
 };
@@ -86,15 +87,40 @@ public:
     BeachLineItem* split_region(
         BeachLineItem* region, const RealCoordinate& focus
     );
-    BeachLineItem* close_region(BeachLineItem* region);
-    BeachLineItem* get_region_2_upper(BeachLineItem* region);
-    BeachLineItem* get_region_2_lower(BeachLineItem* region);
+    BeachLineItem* close_region(
+        BeachLineItem* region, const RealCoordinate& coord
+    );
+    void flush();
     std::vector<Node> get_vertex_graph();
     std::vector<Node> get_region_graph();
 private:
     BeachLineItem* head = nullptr;
-    std::vector<Node> vertices;
-    std::vector<Node> regions;
+    std::vector<BeachLineItem*> finished_regions;
+    std::vector<LineSegment> line_segments;
+    std::unordered_map<RealCoordinate, Node*> vertex_map;
+    std::vector<Node> vertex_graph;
+    std::unordered_map<RealCoordinate, Node*> region_map;
+    std::vector<Node> region_graph;
+    void record_edge(const RealCoordinate& a, const RealCoordinate& b);
+    void link_regions(
+        const RealCoordinate& a, const RealCoordinate& b,
+        const RealCoordinate& c
+    ); 
+};
+
+
+struct FortunesAlgoEvent {
+    RealCoordinate coord;
+    RealCoordinate* intersect_point = nullptr;
+    BeachLineItem* associated_region = nullptr;
+    FortunesAlgoEvent(RealCoordinate& coord);
+    FortunesAlgoEvent(RealCoordinate& coord, RealCoordinate& intersect);
+    FortunesAlgoEvent(const FortunesAlgoEvent& other);
+    ~FortunesAlgoEvent();
+    FortunesAlgoEvent& operator=(const FortunesAlgoEvent& other);
+    bool operator< (const FortunesAlgoEvent& other) const;
+    bool operator> (const FortunesAlgoEvent& other) const;
+    bool operator== (const FortunesAlgoEvent& other) const;
 };
 
 
@@ -152,12 +178,8 @@ inline bool FortunesAlgoEvent::operator== (
 }
 
 inline BeachLineItem::BeachLineItem(const RealCoordinate& coord): 
-    coord(new RealCoordinate(coord)) {};
+    coord(coord) {};
     
-inline BeachLineItem::~BeachLineItem() { 
-    delete coord; 
-};
-
 inline BeachLine::BeachLine(const RealCoordinate& first_p): 
     head(new BeachLineItem(first_p)) {}; 
 

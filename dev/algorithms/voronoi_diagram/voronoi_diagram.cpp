@@ -96,6 +96,20 @@ std::vector<std::vector<int>> VoronoiDiagram::get_diagram() {
 }
 
 
+FortunesAlgoEvent intersection_event(
+    BeachLineItem* r1, BeachLineItem* r2, BeachLineItem* r3
+) {
+    RealCoordinate intersect = triangle_circumcenter(
+        r1->coord, r2->coord, r3->coord
+    );
+    double dist = euclidean_distance(r1->coord, intersect);
+    RealCoordinate known_at = {intersect.x, intersect.y + dist};
+    FortunesAlgoEvent event(known_at);
+    event.intersect_point = new RealCoordinate(intersect);
+    return event;
+}
+
+
 void VoronoiDiagram::fortunes_algorithm(
     std::vector<RealCoordinate>& seeds, int xsize, int ysize
 ) {
@@ -103,7 +117,6 @@ void VoronoiDiagram::fortunes_algorithm(
                         std::vector<FortunesAlgoEvent>, 
                         std::greater<FortunesAlgoEvent>> event_queue;
 
-    std::unordered_set<RealCoordinate> deleted_events;
     for (RealCoordinate& seed : seeds) {
         event_queue.push(FortunesAlgoEvent(seed));
     }
@@ -117,13 +130,33 @@ void VoronoiDiagram::fortunes_algorithm(
                 beach_line.find_intersected_region(next_event.coord),
                 next_event.coord
             );
+            
+            BeachLineItem* l_region = beach_line.get_lower_edge(new_region);
+            l_region = beach_line.get_lower_region(l_region);
+            BeachLineItem* ll_region = beach_line.get_lower_edge(ll_region);
+            if (ll_region != nullptr) {
+                ll_region = beach_line.get_lower_region(ll_region);
+                event_queue.push(intersection_event(new_region, l_region, ll_region));
+            }
+            
+            BeachLineItem* u_region = beach_line.get_upper_edge(new_region);
+            u_region = beach_line.get_upper_region(u_region);
+            BeachLineItem* uu_region = beach_line.get_upper_edge(u_region);
+            if (uu_region != nullptr) {
+                uu_region = beach_line.get_upper_region(uu_region);
+                event_queue.push(intersection_event(new_region, u_region, uu_region));
+            }
 
         }
-        else {
-
+        else if (next_event.associated_region->parent != nullptr) {
+            beach_line.close_region(
+                next_event.associated_region, *next_event.intersect_point
+            );
         }
     }
-
+    beach_line.flush();
+    vertices = beach_line.get_vertex_graph();
+    regions = beach_line.get_region_graph();
 }
 
 
@@ -184,8 +217,8 @@ BeachLineItem* BeachLine::find_intersected_region(const RealCoordinate& loc) {
 
     BeachLineItem* node = head;
     while (node->left != nullptr) {
-        RealCoordinate& focus_a = *get_upper_region(node)->coord;
-        RealCoordinate& focus_b = *get_lower_region(node)->coord;
+        RealCoordinate& focus_a = get_upper_region(node)->coord;
+        RealCoordinate& focus_b = get_lower_region(node)->coord;
         double y = parabolae_y_intercept(loc.x, focus_a, focus_b);
         if (loc.y > y) {
             node = node->left;
@@ -237,11 +270,15 @@ BeachLineItem* BeachLine::get_lower_region(BeachLineItem* node) {
 }
 
 
-BeachLineItem* add_subtree(BeachLineItem* region, const RealCoordinate& focus) {
-    BeachLineItem* left_edge = new BeachLineItem();
-    BeachLineItem* right_edge = new BeachLineItem();
+BeachLineItem* add_subtree(
+    BeachLineItem* region, const RealCoordinate& focus
+) {
+    double x = parabola_x_from_y(focus.x, region->coord, focus.y);
+    RealCoordinate bound_start(x, focus.y);
+    BeachLineItem* left_edge = new BeachLineItem(bound_start);
+    BeachLineItem* right_edge = new BeachLineItem(bound_start);
     BeachLineItem* new_region = new BeachLineItem(focus);
-    BeachLineItem* right_region = new BeachLineItem(*region->coord);
+    BeachLineItem* right_region = new BeachLineItem(region->coord);
     left_edge->left = region;
     region->parent = left_edge;
     left_edge->right = right_edge;
@@ -257,6 +294,8 @@ BeachLineItem* add_subtree(BeachLineItem* region, const RealCoordinate& focus) {
 BeachLineItem* BeachLine::split_region(
     BeachLineItem* region, const RealCoordinate& focus
 ) {
+    region_graph.emplace_back(focus);
+    region_map.emplace(focus, &region_graph.back());
     if (region == head) {
         head = add_subtree(region, focus);
         return head;
@@ -274,7 +313,9 @@ BeachLineItem* BeachLine::split_region(
 }
 
 
-BeachLineItem* BeachLine::close_region(BeachLineItem* region) {
+BeachLineItem* BeachLine::close_region(
+    BeachLineItem* region, const RealCoordinate& coord
+) {
     BeachLineItem* parent = region->parent;
     BeachLineItem* grand_parent = parent->parent;
     BeachLineItem* other_child;
@@ -286,29 +327,81 @@ BeachLineItem* BeachLine::close_region(BeachLineItem* region) {
     else {
         grand_parent->right = other_child;
     }
+    record_edge(grand_parent->coord, coord);
+    record_edge(parent->coord, coord);
+    link_regions(
+        region->coord,
+        get_lower_region(grand_parent)->coord,
+        get_upper_region(grand_parent)->coord
+    );
+    grand_parent->coord = coord;
     delete parent;
-    delete region;
+    region->parent = nullptr; 
+    finished_regions.push_back(region);
     return grand_parent;
 }
 
 
-BeachLineItem* BeachLine::get_region_2_upper(BeachLineItem* region) {
-    BeachLineItem* node = get_upper_edge(region);
-    // if (node == nullptr) { return node; } -- Will never be called for this case
-    node = get_upper_region(node);
-    node = get_upper_edge(node);
-    if (node == nullptr) { return node; }
-    node = get_upper_region(node);
-    return node;
+Node* ensure_node_in_graph(
+    const RealCoordinate& c, 
+    std::vector<Node>& graph,
+    std::unordered_map<RealCoordinate, Node*>& map    
+) {
+    if (auto it = map.find(c); it == map.end()) {
+        graph.emplace_back(c);
+        map.emplace(c, &graph.back());
+        return &graph.back();
+    }
+    else {
+        return it->second;
+    }
+    
 }
 
 
-BeachLineItem* BeachLine::get_region_2_lower(BeachLineItem* region) {
-    BeachLineItem* node = get_lower_edge(region);
-    // if (node == nullptr) { return node; } -- Will never be called for this case
-    node = get_lower_region(node);
-    node = get_lower_edge(node);
-    if (node == nullptr) { return node; }
-    node = get_lower_region(node);
-    return node;
+void BeachLine::record_edge(
+    const RealCoordinate& a, const RealCoordinate& b
+) {
+    Node *va = ensure_node_in_graph(a, vertex_graph, vertex_map);
+    Node *vb = ensure_node_in_graph(b, vertex_graph, vertex_map);
+    va->edges.push_back(vb);
+    vb->edges.push_back(va);
+}
+
+
+void ensure_region_link(Node* a, Node* b) {
+    if (std::find(a->edges.begin(), a->edges.end(), b) == a->edges.end()) {
+        a->edges.push_back(b);
+        b->edges.push_back(a);
+    }
+}
+
+
+void BeachLine::link_regions(
+    const RealCoordinate& a, const RealCoordinate& b,
+    const RealCoordinate& c
+) {
+    Node *ra = ensure_node_in_graph(a, region_graph, region_map);
+    Node *rb = ensure_node_in_graph(b, region_graph, region_map);
+    Node *rc = ensure_node_in_graph(c, region_graph, region_map); 
+    ensure_region_link(ra, rb);
+    ensure_region_link(ra, rc);
+    ensure_region_link(rb, rc);
+}
+
+
+void BeachLine::flush() {
+// TODO: This is the method to remove the remaining 
+//       items from the beachline and create the 
+//       associated region and vertex items
+}
+
+
+std::vector<Node> BeachLine::get_vertex_graph() {
+    return std::move(vertex_graph);
+}
+
+
+std::vector<Node> BeachLine::get_region_graph() {
+    return std::move(region_graph);
 }

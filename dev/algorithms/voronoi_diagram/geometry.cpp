@@ -34,7 +34,7 @@ RealCoordinate triangle_circumcenter(
     RealCoordinate& p1, RealCoordinate& p2, RealCoordinate& p3
 ) {
     double a = p1.x - p2.x;
-    double b = p1.x - p2.y;
+    double b = p1.y - p2.y;
     double c = p2.x - p3.x;
     double d = p2.y - p3.y;
     double u = 0.5 * (p1.x * p1.x + p1.y * p1.y - p2.x * p2.x - p2.y * p2.y);
@@ -69,10 +69,11 @@ RealCoordinate midpoint(RealCoordinate& a, RealCoordinate& b) {
 
 std::vector<double> quadratic_roots(double a, double b, double c) {
     double inner = b * b - 4.0 * a * c;
+    const double eps = 0.0000000001;
     if (inner < 0) {
         return {};
     }
-    else if (inner == 0) {
+    else if (0 - eps < inner && inner < 0 + eps) {
         return {(-b / (2.0 * a))};
     }
     else {
@@ -91,7 +92,7 @@ bool is_between(double x, double a, double b) {
 }
 
 
-double parabola_x_from_y(double directrix, RealCoordinate& focus,double y) {
+double parabola_x_from_y(double directrix, RealCoordinate& focus, double y) {
     return (y - focus.y) * (y - focus.y) / (2.0 * (focus.x - directrix))
            + (focus.x + directrix) * 0.5;
 }
@@ -100,27 +101,38 @@ double parabola_x_from_y(double directrix, RealCoordinate& focus,double y) {
 RealCoordinate parabola_intercept(
     double directrix, RealCoordinate& focus1, RealCoordinate& focus2
 ) {
-    /*
-     Will return the intersection point of the two parabolas that is 
-     between the two focuses (on y-axis).
-     */
     auto [xf1, yf1] = focus1;
     auto [xf2, yf2] = focus2;
     double xd = directrix;
 
+    double y; 
     double a = xf2 - xf1;
+    if (a == 0) {
+        y = 0.5 * (yf1 + yf2);
+        return {parabola_x_from_y(directrix, focus1, y), y};
+    }
     double b = 2.0 * (yf2 * (xf1 - xd) - yf1 * (xf2 - xd));
     double c = (yf1 * yf1) * (xf2 - xd) - (yf2 * yf2) * (xf1 - xd) 
              - (xf2 - xf1) * (xf1 - xd) * (xf2 - xd);
 
-    // There will always exist 2 intercepts for 2 parabolas defined 
-    // in this way. 
     std::vector<double> roots = quadratic_roots(a, b, c);
-    double y = is_between(roots[0], yf1, yf2) ? roots[0] : roots[1];
+    if (roots.size() == 1) {
+        y = roots[0];
+    }
+    if (xf1 > xf2) {
+        y = std::min(roots[0], roots[1]);
+    }
+    else {
+        y = std::max(roots[0], roots[1]);
+    }
+    
     return {parabola_x_from_y(directrix, focus1, y), y};
 }
 
-
+/* 
+ Warn: This method is designed such that the order the focuses are given
+ matters and determines which of the 2 possible y values to return.
+ */
 double parabolae_y_intercept(
     double directrix, RealCoordinate& focus1, RealCoordinate& focus2
 ) {
@@ -129,10 +141,21 @@ double parabolae_y_intercept(
     double xd = directrix;
 
     double a = xf2 - xf1;
+    if (a == 0) {
+        return 0.5 * (yf1 + yf2);
+    }
     double b = 2.0 * (yf2 * (xf1 - xd) - yf1 * (xf2 - xd));
     double c = (yf1 * yf1) * (xf2 - xd) - (yf2 * yf2) * (xf1 - xd) 
              - (xf2 - xf1) * (xf1 - xd) * (xf2 - xd);
 
     std::vector<double> roots = quadratic_roots(a, b, c);
-    return is_between(roots[0], yf1, yf2) ? roots[0] : roots[1];
+    if (roots.size() == 1) {
+        return roots[0];
+    }
+    if (xf1 > xf2) {
+        return std::min(roots[0], roots[1]);
+    }
+    else {
+        return std::max(roots[0], roots[1]);
+    }
 }

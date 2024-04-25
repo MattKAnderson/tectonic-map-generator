@@ -42,7 +42,7 @@ def parabola_intersection(directrix, focus_1, focus_2):
     if len(intersects) == 2 and is_between(intersects[1], yf1, yf2):
         return intersects[1]
     else:
-        return intersects[1]
+        return intersects[0]
 
 
 def generate_parabola(focus, directrix, xs):
@@ -65,7 +65,7 @@ def generate_parabola(focus, directrix, xs):
     return lower_points + middle + upper_points
 
 
-def plot_parabola(ax, focus, directrix, xmin, xmax, step=0.001):
+def plot_parabola(ax, focus, directrix, xmin, xmax, step=0.1):
     xs = list(np.arange(xmin, xmax, step))
     parabola_pts = generate_parabola(focus, directrix, xs)
     pxs = [p[0] for p in parabola_pts]
@@ -73,11 +73,11 @@ def plot_parabola(ax, focus, directrix, xmin, xmax, step=0.001):
     ax.plot(pxs, pys)
 
 
-directrix = 20.0
-focus_1 = [14.0, 7.0]
-focus_2 = [11.0, 10.0]
-xmin = -10.0
-xmax = 20.0
+directrix = 882.00001
+focus_1 = [823, 870]
+focus_2 = [815, 853]
+xmin = 0.0
+xmax = 1000.0
 
 ax = plt.gca()
 plot_parabola(ax, focus_1, directrix, xmin, xmax)

@@ -16,6 +16,11 @@ std::string to_json<Coordinate>(const Coordinate& c) {
 }
 
 template <>
+std::string to_json<RealCoordinate>(const RealCoordinate& c) {
+    return "[" + std::to_string(c.x) + ", " + std::to_string(c.y) + "]";
+}
+
+template <>
 std::string to_json<Vector2D<double>>(const Vector2D<double>& v) {
     return "[" + std::to_string(v.x) + ", " + std::to_string(v.y) + "]";
 }

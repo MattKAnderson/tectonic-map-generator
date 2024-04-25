@@ -1,7 +1,6 @@
 #pragma once
 #include <vector>
 #include <limits>
-#include <geometry.hpp>
 
 
 struct RealCoordinate {
@@ -29,6 +28,7 @@ struct hash<RealCoordinate> {
         return hx ^ (hy << 1);
     }
 };
+
 
 template <>
 struct hash<Coordinate> {

@@ -2,6 +2,7 @@
  *   Geometry functions for implementing fortunes algorithm
  * 
  */
+#pragma once
 #include <cmath>
 #include <vector>
 #include <Coordinate.hpp>

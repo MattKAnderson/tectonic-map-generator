@@ -1,5 +1,5 @@
 #include <geometry.hpp>
-
+#include <iostream>
 
 double euclidean_distance(RealCoordinate& c1, RealCoordinate& c2) {
     double dx = c1.x - c2.x;
@@ -31,7 +31,7 @@ RealCoordinate triangle_centroid(
 
 
 RealCoordinate triangle_circumcenter(
-    RealCoordinate& p1, RealCoordinate& p2, RealCoordinate& p3
+    const RealCoordinate& p1, const RealCoordinate& p2, const RealCoordinate& p3
 ) {
     double a = p1.x - p2.x;
     double b = p1.y - p2.y;
@@ -49,8 +49,8 @@ RealCoordinate triangle_circumcenter(
 
 
 RealCoordinate lines_intercept(
-    RealCoordinate& l1a, RealCoordinate& l1b, 
-    RealCoordinate& l2a, RealCoordinate& l2b
+    const RealCoordinate& l1a, const RealCoordinate& l1b, 
+    const RealCoordinate& l2a, const RealCoordinate& l2b
 ) {
     double m1 = (l1b.y - l1a.y) / (l1b.x - l1a.x);
     double b1 = l1a.y - m1 * l1a.x;
@@ -62,14 +62,21 @@ RealCoordinate lines_intercept(
 }
 
 
-RealCoordinate midpoint(RealCoordinate& a, RealCoordinate& b) {
+bool on_line_segment(
+    RealCoordinate& l1, RealCoordinate& l2, RealCoordinate& p
+) {
+     
+}
+
+
+RealCoordinate midpoint(const RealCoordinate& a, const RealCoordinate& b) {
     return {(a.x + b.x) / 2.0, (a.y + b.y) / 2.0};
 }
 
 
 std::vector<double> quadratic_roots(double a, double b, double c) {
     double inner = b * b - 4.0 * a * c;
-    const double eps = 0.0000000001;
+    const double eps = 1e-10;
     if (inner < 0) {
         return {};
     }
@@ -92,18 +99,26 @@ bool is_between(double x, double a, double b) {
 }
 
 
-double parabola_x_from_y(double directrix, RealCoordinate& focus, double y) {
+double parabola_x_from_y(double directrix, const RealCoordinate& focus, double y) {
     return (y - focus.y) * (y - focus.y) / (2.0 * (focus.x - directrix))
            + (focus.x + directrix) * 0.5;
 }
 
 
 RealCoordinate parabola_intercept(
-    double directrix, RealCoordinate& focus1, RealCoordinate& focus2
+    double directrix, const RealCoordinate& focus1, const RealCoordinate& focus2
 ) {
+    const double eps = 1e-8;
     auto [xf1, yf1] = focus1;
     auto [xf2, yf2] = focus2;
     double xd = directrix;
+
+    if (xf1 - xd < 0 + eps && xf1 - xd > 0 - eps) {
+        return {parabola_x_from_y(directrix, focus2, yf1), yf1};
+    }
+    if (xf2 - xd < 0 + eps && xf2 - xd > 0 - eps) {
+        return {parabola_x_from_y(directrix, focus1, yf2), yf2};
+    }
 
     double y; 
     double a = xf2 - xf1;
@@ -116,6 +131,12 @@ RealCoordinate parabola_intercept(
              - (xf2 - xf1) * (xf1 - xd) * (xf2 - xd);
 
     std::vector<double> roots = quadratic_roots(a, b, c);
+    if (roots.size() == 0) {
+        std::cout << "ran into case with no roots" << std::endl;
+        std::cout << "f1: (" << xf1 << ", " << yf1 << ")\n"
+                  << "f2: (" << xf2 << ", " << yf2 << ")\n"
+                  << "d:  " << directrix << std::endl;
+    }
     if (roots.size() == 1) {
         y = roots[0];
     }
@@ -134,7 +155,7 @@ RealCoordinate parabola_intercept(
  matters and determines which of the 2 possible y values to return.
  */
 double parabolae_y_intercept(
-    double directrix, RealCoordinate& focus1, RealCoordinate& focus2
+    double directrix, const RealCoordinate& focus1, const RealCoordinate& focus2
 ) {
     auto [xf1, yf1] = focus1;
     auto [xf2, yf2] = focus2;

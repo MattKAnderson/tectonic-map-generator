@@ -69,6 +69,28 @@ private:
 
 class BoundaryRay {
 public:
+    BoundaryRay(
+        const RealCoordinate& r1, const RealCoordinate& r2
+    );
+    void clip_to_bbox(double xmin, double xmax, double ymin, double ymax);
+    RealCoordinate r1;
+    RealCoordinate r2;
+    RealCoordinate* lv = nullptr;
+    RealCoordinate* rv = nullptr;
+private:
+    void clip_infinite_ray(double xmin, double xmax, double ymin, double ymax);
+    RealCoordinate* clip_infinite_ray(
+        double x_int, double y_int, double x0, double y0, double ymin, double ymax
+    );
+    void clip_vertex_to_bbox(
+        RealCoordinate* v, RealCoordinate* other, double xmin, double xmax, 
+        double ymin, double ymax
+    );
+};
+
+/*
+class BoundaryRay {
+public:
     BoundaryRay() {}
     ~BoundaryRay();
     BoundaryRay(const BoundaryRay& other);
@@ -76,7 +98,8 @@ public:
     void add_vertex(const RealCoordinate v);
     RealCoordinate* a = nullptr;
     RealCoordinate* b = nullptr;
-};
+    double direction;
+};*/
 
 
 class BeachLineItem {
@@ -86,15 +109,15 @@ public:
     BeachLineItem* parent = nullptr;
     BeachLineItem() {}
     BeachLineItem(const RealCoordinate& coord);
-    BeachLineItem(const RealCoordinate& coord, BoundaryRay* ray);
+    BeachLineItem(BoundaryRay* ray);
     BeachLineItem(const BeachLineItem&) = delete;
     ~BeachLineItem();
     BeachLineItem& operator=(const BeachLineItem&) = delete;
     void set_coord(const RealCoordinate& coord);
     RealCoordinate& coord(); 
     bool has_coord();
-    void publish_vertex(const RealCoordinate& coord);
-    BoundaryRay* associated_ray = nullptr;
+    //BoundaryRay* associated_ray = nullptr;
+    RealCoordinate** associated_ray_vertex = nullptr;
 private:
     RealCoordinate* coord_ = nullptr; // focus for regions
 };
@@ -117,7 +140,8 @@ public:
         BeachLineItem* region, const RealCoordinate& coord
     );
     bool is_behind(double directrix, const RealCoordinate& loc);
-    void flush();
+    //void flush(double xlim, double ylim);
+    void clip_rays(double xmin, double xmax, double ymin, double ymax);
     std::vector<Node*> vertex_graph();
     //std::vector<Node*> consume_vertex_graph();
     //std::vector<Node*> consume_region_graph();
@@ -156,6 +180,12 @@ struct FortunesAlgoEvent {
 };
 
 
+inline BoundaryRay::BoundaryRay(
+    const RealCoordinate& r1, const RealCoordinate& r2
+): r1(r1), r2(r2) {}
+
+
+/*
 inline BoundaryRay::~BoundaryRay() {
     delete a;
     delete b;
@@ -180,7 +210,7 @@ inline BoundaryRay& BoundaryRay::operator=(const BoundaryRay& other) {
     std::swap(this->a, ray.a);
     std::swap(this->b, ray.b);
 }
-
+*/
 
 inline FortunesAlgoEvent::FortunesAlgoEvent(RealCoordinate& coord): 
     coord(coord) {}
@@ -268,10 +298,6 @@ inline BeachLineItem::BeachLineItem(const RealCoordinate& coord):
     coord_(new RealCoordinate(coord)) {};
     
 
-inline BeachLineItem::BeachLineItem(const RealCoordinate& coord, BoundaryRay* ray):
-    coord_(new RealCoordinate(coord)), associated_ray(ray) {};
-
-
 inline BeachLineItem::~BeachLineItem() {
     delete coord_;
 }
@@ -290,17 +316,6 @@ inline RealCoordinate& BeachLineItem::coord() {
 
 inline bool BeachLineItem::has_coord() {
     return coord_ != nullptr;
-}
-
-
-inline void BeachLineItem::publish_vertex(const RealCoordinate& v) {
-    if (associated_ray != nullptr) {
-        associated_ray->add_vertex(v);
-    }
-    else {
-        std::cout << "Attempting to publish vertex, but there is no "
-                  << "associated ray!" << std::endl;
-    }
 }
 
 

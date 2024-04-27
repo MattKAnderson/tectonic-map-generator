@@ -121,15 +121,105 @@ std::vector<Node*> VoronoiDiagram::consume_vertices() {
 }
 
 
-void BoundaryRay::add_vertex(const RealCoordinate v) {
-    if (a == nullptr) {
-        a = new RealCoordinate(v);
+void BoundaryRay::clip_to_bbox(
+    double xmin, double xmax, double ymin, double ymax
+) {
+    if (lv == nullptr && rv == nullptr) {
+        std::cout << "Both were nullptrs... shouldnt happen" << std::endl;
     }
-    else if (b == nullptr) {
-        b = new RealCoordinate(v);
+    if (lv == nullptr) {
+        if (rv->x < xmin || rv->x > xmax || rv->y < ymin || rv->y > ymax) {
+            delete rv;
+            rv = nullptr;
+        }
+        else {
+            lv = clip_infinite_ray(xmin, ymin, rv->x, rv->y, ymin, ymax);
+        }
+    }
+    else if (rv == nullptr) {
+        if (lv->x < xmin || lv->x > xmax || lv->y < ymin || lv->y > ymax) {
+            delete lv;
+            lv = nullptr;
+        }
+        else {
+            rv = clip_infinite_ray(xmax, ymax, lv->x, lv->y, ymin, ymax);        
+        }
     }
     else {
-        std::cout << "Erorr: Tried to add a third point to line!!" << std::endl;
+        clip_vertex_to_bbox(lv, rv, xmin, xmax, ymin, ymax);
+        clip_vertex_to_bbox(rv, lv, xmin, xmax, ymin, ymax);
+    }
+}
+
+
+RealCoordinate* BoundaryRay::clip_infinite_ray(
+    double x_int, double y_int, double x0, double y0, double ymin, double ymax
+) {
+    if (r1.x == r2.x) {
+        y_int = r1.y;
+    }
+    else if (r1.y == r2.y) {
+        x_int = r1.x;
+    }
+    else {
+        RealCoordinate mp = {0.5 * (r1.x + r2.x), 0.5 * (r1.y + r2.y)};
+        double m = (y0 - mp.y) / (x0 - mp.x);
+        double b = y0 - m * x0;
+        y_int = m * x_int + b;
+        if (y_int < ymin) {
+            y_int = ymin;
+            x_int = (y_int - b) / m;
+        }
+        else if (y_int > ymax) {
+            y_int = ymax;
+            x_int = (y_int - b) / m;
+        }
+    }
+    return new RealCoordinate{x_int, y_int};
+}
+
+/*
+ *   Note if the line lies completely outside the box, but it would
+ *   intersect the box if it kept going, this method will clip both 
+ *   vertices to the same point on the boxes exterior. 
+ *   
+ *   This may be related to the issue with disconnected components on
+ *   the voronoi graph (which causes outputting the vertices to file 
+ *   to fail)
+ */
+void BoundaryRay::clip_vertex_to_bbox(
+    RealCoordinate* v, RealCoordinate* other, double xmin, double xmax, 
+    double ymin, double ymax
+) {
+    double m = (v->y - other->y) / (v->x - other->x);
+    double b = v->y - m * v->x;
+    if (v->x < xmin) {
+        double y_int = m * xmin + b;
+        if (y_int >= ymin && y_int <= ymax) {
+            *v = {xmin, y_int};
+            return;
+        }
+    }
+    if (v->x > xmax) {
+        double y_int = m * xmax + b;
+        if (y_int >= ymin && y_int <= ymax) {
+            *v = {xmax, y_int};
+            return;
+        }
+    }
+    if (v->y < ymin) {
+        double x_int = (ymin - b) / m;
+        if (x_int >= xmin && x_int <= xmax) {
+            *v = {x_int, ymin};
+            return;
+        }
+    }
+    if (v->y > ymax) {
+        double x_int = (ymax - b) / m;
+        if (x_int >= xmin && x_int <= xmax) {
+            *v = {x_int, ymax};
+            return;
+        }
     }
 }
 
@@ -146,9 +236,6 @@ FortunesAlgoEvent intersection_event(
     auto c1 = r1->coord();
     auto c2 = r2->coord();
     auto c3 = r3->coord();
-    //std::cout << "    Creating intersection from: (" << c1.x << ", " << c1.y << "), (" << c2.x << ", " << c2.y << "), (" << c3.x << ", " << c3.y << ")\n"; 
-    //std::cout << "    Creating intersection event at: (" << known_at.x << ", " << known_at.y << ")" << std::endl;
-    //std::cout << "    Intersection is: (" << intersect.x << ", " << intersect.y << ")" << std::endl;
     FortunesAlgoEvent event(known_at);
     event.intersect_point = new RealCoordinate(intersect);
     event.associated_region = r2; // it's the mid region that gets squeezed
@@ -165,7 +252,6 @@ void VoronoiDiagram::fortunes_algorithm(
 
     for (RealCoordinate& seed : seeds) {
         event_queue.push(FortunesAlgoEvent(seed));
-        //std::cout << "[" << seed.x << ", " << seed.y << "],\n";
     }
     BeachLine beach_line(event_queue.top().coord); 
     event_queue.pop();
@@ -175,8 +261,6 @@ void VoronoiDiagram::fortunes_algorithm(
         auto coord = next_event.coord;
         double directrix = next_event.coord.x;
         if (next_event.intersect_point == nullptr) {
-            //std::cout << "Handling SITE:\n"
-            //          << "    location: (" << coord.x << ", " << coord.y << ")\n";
             BeachLineItem* new_region = beach_line.split_region(
                 beach_line.find_intersected_region(next_event.coord),
                 next_event.coord
@@ -191,12 +275,7 @@ void VoronoiDiagram::fortunes_algorithm(
                 FortunesAlgoEvent ie = intersection_event(
                     new_region, l_region, ll_region
                 );
-                //if (next_event.coord == RealCoordinate(882.0, 848.0)) {
-                //    std::cout << "Intersection event is: (" << ie.intersect_point->x 
-                //              << ", " << ie.intersect_point->y << ")\n";
-                //}
                 if (coord.y > ie.intersect_point->y) {
-                    //std::cout << "    Published\n";
                     event_queue.push(ie);
                 }
             }
@@ -209,12 +288,7 @@ void VoronoiDiagram::fortunes_algorithm(
                 FortunesAlgoEvent ie = intersection_event(
                     new_region, u_region, uu_region
                 );
-                //if (next_event.coord == RealCoordinate(882.0, 848.0)) {
-                //    std::cout << "Intersection event is: (" << ie.intersect_point->x 
-                //              << ", " << ie.intersect_point->y << ")\n";
-                //}
                 if (coord.y < ie.intersect_point->y) {
-                    //std::cout << "    Published\n";
                     event_queue.push(ie);
                 }
             }
@@ -222,9 +296,7 @@ void VoronoiDiagram::fortunes_algorithm(
         }
         else if (next_event.associated_region->parent != nullptr) {
             auto inter = *next_event.intersect_point;
-            //std::cout << "Handling INTERSECTION:\n"
-            //          << "    location: (" << inter.x << ", " << inter.y << ")\n";
-            
+
             BeachLineItem* l_region = beach_line.get_lower_edge(next_event.associated_region);
             l_region = beach_line.get_lower_region(l_region);
             BeachLineItem* u_region = beach_line.get_upper_edge(next_event.associated_region);
@@ -242,14 +314,13 @@ void VoronoiDiagram::fortunes_algorithm(
                     FortunesAlgoEvent ie = intersection_event(
                         u_region, l_region, ll_region
                     );
-                    RealCoordinate& fu = u_region->coord();
-                    RealCoordinate& fl = l_region->coord();
+                    const RealCoordinate& fu = u_region->coord();
+                    const RealCoordinate& fl = l_region->coord();
                     double midpoint_x = 0.5 * (fu.x + fl.x);
-                    double arc_dir = (fu.y - fl.y);//* (midpoint_x - inter.x);
+                    double arc_dir = (fu.y - fl.y);
                     double int_dir = (ie.intersect_point->x - inter.x);
                     bool towards_intersect = (arc_dir * int_dir) >= 0;
-                    RealCoordinate& fll = ll_region->coord();
-                    //double midpoint_x2 = 0.5 * (fuu.x + fu.x);
+                    const RealCoordinate& fll = ll_region->coord();
                     double arc_dir_2 = (fl.y - fll.y);
                     RealCoordinate l_edge = parabola_intercept(
                         directrix, fl, fll
@@ -257,58 +328,12 @@ void VoronoiDiagram::fortunes_algorithm(
                     double int_dir_2 = (ie.intersect_point->x - l_edge.x);
                     bool arc_2_towards_intersect = (arc_dir_2 * int_dir_2) >= 0;
                     bool pushed = false;
-                    //if (next_event.intersect_point->x > 848.29 && next_event.intersect_point->x < 848.3) {
-                    //    std::cout << "Event in question: " 
-                    //              << "    towards_intersect:   " << towards_intersect << "\n"
-                    //              << "    towards_intersect_2: " << arc_2_towards_intersect << "\n"
-                    //              << "    arc_dir_2: " << arc_dir_2 << "\n"
-                    //              << "    int_dir_2: " << int_dir_2 << "\n";
-                    //}
                     if (towards_intersect && arc_2_towards_intersect && ie.coord.x > directrix) {
                         if (*ie.intersect_point != *next_event.intersect_point) {
                             event_queue.push(ie);
                             pushed = true;
                         }
                     }
-                
-                //double dist = euclidean_distance(u_region->coord(), *ie.intersect_point); 
-                //RealCoordinate u_edge = parabola_intercept(
-                //    directrix, u_region->coord(), l_region->coord()
-                //);
-                //RealCoordinate l_edge = parabola_intercept(
-                //    directrix, l_region->coord(), ll_region->coord()
-                //);
-                //BeachLineItem* l_edge_ptr = beach_line.get_lower_edge(l_region);
-                //bool pushed = false;
-                //if (*next_event.intersect_point != *ie.intersect_point) {
-                //if (u_region->coord() != ll_region->coord()) {
-                //if (
-                //    (ie.intersect_point->x > l_edge.x && l_edge.x - l_edge_ptr->coord().x > 0)
-                //) {
-                //    if (ie.coord.x > directrix) {
-                //        event_queue.push(ie);
-                //        pushed = true;
-                //   }
-                //}
-                //}
-                //}
-                //if (ie.intersect_point->x + dist > directrix) {
-                //    event_queue.push(ie);
-                //}
-                //if (*next_event.intersect_point != *ie.intersect_point) {
-                //    if (beach_line.is_behind(directrix, *ie.intersect_point)) {
-                //        if (!pushed) {
-                //        std::cout << "The beachline was behind of intersection, but it was not "
-                //                  << "pushed. Int: (" << ie.intersect_point->x << ", " 
-                //                  << ie.intersect_point->y << ")\n";
-                //        }
-                //    }
-                //    else if (pushed) {
-                //        std::cout << "The beachline was ahead of the prospective intersection "
-                //                  << "at: (" << ie.intersect_point->x << ", " 
-                //                  << ie.intersect_point->y << ")\n"; 
-                        
-                //    }
                 }
             }
             if (uu_region != nullptr) {
@@ -317,15 +342,14 @@ void VoronoiDiagram::fortunes_algorithm(
                     FortunesAlgoEvent ie = intersection_event(
                         l_region, u_region, uu_region
                     );
-                    RealCoordinate& fu = u_region->coord();
-                    RealCoordinate& fl = l_region->coord();
+                    const RealCoordinate& fu = u_region->coord();
+                    const RealCoordinate& fl = l_region->coord();
                     double midpoint_x = 0.5 * (fu.x + fl.x);
-                    double arc_dir = (fu.y - fl.y);// * (midpoint_x - inter.x);
+                    double arc_dir = (fu.y - fl.y);
                     double int_dir = (ie.intersect_point->x - inter.x);
                     bool towards_intersect = (arc_dir * int_dir) >= 0;
 
-                    RealCoordinate& fuu = uu_region->coord();
-                    //double midpoint_x2 = 0.5 * (fuu.x + fu.x);
+                    const RealCoordinate& fuu = uu_region->coord();
                     double arc_dir_2 = (fuu.y - fu.y);
                     RealCoordinate u_edge = parabola_intercept(
                         directrix, fuu, fu
@@ -339,64 +363,15 @@ void VoronoiDiagram::fortunes_algorithm(
                             pushed = true;
                         }
                     }
-                
-                //double dist = euclidean_distance(l_region->coord(), *ie.intersect_point);
-                //RealCoordinate l_edge = parabola_intercept(
-                //    directrix, u_region->coord(), l_region->coord()
-                //);
-                //double l_edge_x_midpoint = 0.5 * (u_region->coord().x + l_region->coord().y);
-                //BeachLineItem* l_edge_ptr = beach_line.get_lower_edge(u_region);
-                //RealCoordinate u_edge = parabola_intercept(
-                //    directrix, uu_region->coord(), u_region->coord()
-                //);
-                //BeachLineItem* u_edge_ptr = beach_line.get_upper_edge(u_region);
-                //bool pushed = false;
-                //if (*next_event.intersect_point != *ie.intersect_point) {
-                //if (l_region->coord() != uu_region->coord()) {
-                //if (
-                //    (ie.intersect_point->x > u_edge.x && u_edge.x - u_edge_ptr->coord().x > 0)
-                // ) {
-                //    if (ie.coord.x > directrix) {
-                //        event_queue.push(ie);
-                //        pushed = true;
-                //    }
-                //}
-                //}
-                //}
-                //if (!beach_line.is_behind(directrix, *ie.intersect_point)) {
-                //    if (pushed) {
-                //        std::cout << "The beachline was ahead of the prospective intersection "
-                //                  << "at: (" << ie.intersect_point->x << ", " 
-                //                  << ie.intersect_point->y << ")\n"; 
-                //    }
-                //}
-                //else {
-                //    if (!pushed) {
-                //        std::cout << "The beachline was behind of intersection, but it was not "
-                //                  << "pushed. Int: (" << ie.intersect_point->x << ", " 
-                //                  << ie.intersect_point->y << ")\n";
-                //    }
-                //}
-                //if (ie.intersect_point->x + dist > directrix) {
-                //   event_queue.push(ie);
-                //}
-                //if (*next_event.intersect_point != *ie.intersect_point) {
-                //if (beach_line.is_behind(directrix, *ie.intersect_point)) {
-                //    std::cout << "    Published\n";
-                //    event_queue.push(ie);
-                //}
-                //}
                 }
             }
         }
         else {
             auto inter = *next_event.intersect_point;
-            //std::cout << "Removing invalidated INTERSECTION\n"
-            //          << "    location: (" << inter.x << ", " << inter.y << ")\n";
             event_queue.pop();
         }
     }
-    beach_line.flush();
+    beach_line.clip_rays(-100.0, xsize + 100.0, -100.0, ysize + 100.0);
     vertices = beach_line.vertex_graph();
     //regions = beach_line.consume_region_graph();
 }
@@ -450,12 +425,7 @@ BeachLineItem* BeachLine::find_intersected_region(const RealCoordinate& loc) {
         RealCoordinate& focus_a = get_upper_region(node)->coord();
         RealCoordinate& focus_b = get_lower_region(node)->coord();
         double y = parabolae_y_intercept(loc.x, focus_a, focus_b);
-        //if (loc == RealCoordinate(882, 848)) {
-        //    std::cout << "    Computing edge location:\n"
-        //              << "         focus_a: (" << focus_a.x << ", " << focus_a.y << ")\n"
-        //              << "         focus_b: (" << focus_b.x << ", " << focus_b.y << ")\n"
-        //              << "         y_int: " << y << std::endl;
-        //}
+        // Do a nan check?
         if (loc.y > y) {
             node = node->left;
         }
@@ -472,9 +442,6 @@ BeachLineItem* BeachLine::find_intersected_region(const RealCoordinate& loc) {
             node = node->right;
         }
     }
-    //if (loc == RealCoordinate(882.0, 848.0)) {
-    //    std::cout << "    Intersected region with focus: (" << node->coord().x << ", " << node->coord().y << ")\n";
-    //}
     return node;
 }
 
@@ -516,30 +483,35 @@ BeachLineItem* BeachLine::get_lower_region(BeachLineItem* node) {
 BeachLineItem* BeachLine::add_subtree(
     BeachLineItem* region, const RealCoordinate& focus
 ) {
-    double x = parabola_x_from_y(focus.x, region->coord(), focus.y);
-    RealCoordinate bound_start(x, focus.y);
-    rays.push_back(new BoundaryRay());
-    BeachLineItem* left_edge = new BeachLineItem(bound_start, rays.back());
-    BeachLineItem* right_edge = new BeachLineItem(bound_start, rays.back());
+    const RealCoordinate& r = region->coord();
+    rays.push_back(new BoundaryRay(focus, r));
+    BeachLineItem* upper_edge = new BeachLineItem;
+    BeachLineItem* lower_edge = new BeachLineItem;
+    if (focus.y > r.y) {
+        upper_edge->associated_ray_vertex = &(rays.back()->lv);
+        lower_edge->associated_ray_vertex = &(rays.back()->rv);
+    } 
+    else {
+        upper_edge->associated_ray_vertex = &(rays.back()->rv);
+        lower_edge->associated_ray_vertex = &(rays.back()->lv);
+    }
     BeachLineItem* new_region = new BeachLineItem(focus);
-    BeachLineItem* right_region = new BeachLineItem(region->coord());
-    left_edge->left = region;
-    region->parent = left_edge;
-    left_edge->right = right_edge;
-    right_edge->parent = left_edge;
-    right_edge->left = new_region;
-    new_region->parent = right_edge;
-    right_edge->right = right_region;
-    right_region->parent = right_edge;
-    return left_edge;
+    BeachLineItem* lower_region = new BeachLineItem(region->coord());
+    upper_edge->left = region;
+    region->parent = upper_edge;
+    upper_edge->right = lower_edge;
+    lower_edge->parent = upper_edge;
+    lower_edge->left = new_region;
+    new_region->parent = lower_edge;
+    lower_edge->right = lower_region;
+    lower_region->parent = lower_edge;
+    return upper_edge;
 }
 
 
 BeachLineItem* BeachLine::split_region(
     BeachLineItem* region, const RealCoordinate& focus
 ) {
-    //region_graph.push_back(new Node(focus));
-    //region_map.emplace(focus, region_graph.back());
     if (region == head) {
         head = add_subtree(region, focus);
         return head->right->left;
@@ -582,20 +554,22 @@ BeachLineItem* BeachLine::close_region(
         parent->parent->right = other_child;
         other_child->parent = parent->parent;
     }
-    
-    parent->publish_vertex(coord);
-    comp_edge->publish_vertex(coord);
-    rays.push_back(new BoundaryRay());
-    rays.back()->add_vertex(coord);
-    comp_edge->associated_ray = rays.back();
-    //link_regions(
-    //    region->coord(),
-    //    get_lower_region(grand_parent)->coord(),
-    //    get_upper_region(grand_parent)->coord()
-    //);
+
+    const RealCoordinate& lr_focus = get_lower_region(comp_edge)->coord();
+    const RealCoordinate& ur_focus = get_upper_region(comp_edge)->coord();
+    *parent->associated_ray_vertex = new RealCoordinate(coord);
+    *comp_edge->associated_ray_vertex = new RealCoordinate(coord);
+    rays.push_back(new BoundaryRay(lr_focus, ur_focus));
+    if (ur_focus.y > lr_focus.y) {
+        comp_edge->associated_ray_vertex = &(rays.back()->rv);
+        rays.back()->lv = new RealCoordinate(coord);
+    }
+    else {
+        comp_edge->associated_ray_vertex = &(rays.back()->lv);
+        rays.back()->rv = new RealCoordinate(coord);
+    }
     delete parent;
     region->parent = nullptr; 
-    //finished_regions.push_back(region);
     return comp_edge;
 }
 
@@ -659,26 +633,31 @@ void ensure_region_link(Node* a, Node* b) {
 }*/
 
 
-void BeachLine::flush() {
-// TODO: This is the method to remove the remaining 
-//       items from the beachline and create the 
-//       associated region and vertex items
+void BeachLine::clip_rays(double xmin, double xmax, double ymin, double ymax) {
+    for (BoundaryRay* ray : rays) {
+        ray->clip_to_bbox(xmin, xmax, ymin, ymax);
+    }
 }
 
 
 std::vector<Node*> BeachLine::vertex_graph() {
-    //std::cout << "building vertex graph" << std::endl;
     std::vector<Node*> graph;
     std::unordered_map<RealCoordinate, Node*> vertex_map;
+    int counter = 0;
+    int zero_len_counter = 0;
     for (BoundaryRay* ray : rays) {
-        if (ray->b == nullptr) {
+        if (ray->lv == nullptr || ray->rv == nullptr) {
+            ++counter;
             continue;
         }
         Node* vertex_a = nullptr;
         Node* vertex_b = nullptr;
-        const RealCoordinate& va = *ray->a;
-        const RealCoordinate& vb = *ray->b; 
-        //std::cout << ray->a->x << std::endl;
+        const RealCoordinate& va = *ray->lv;
+        const RealCoordinate& vb = *ray->rv; 
+        if (va == vb) {
+            ++zero_len_counter;
+            continue;
+        }
         if (auto s = vertex_map.find(va); s == vertex_map.end()) {
             vertex_a = new Node(va);
             graph.push_back(vertex_a);
@@ -699,15 +678,7 @@ std::vector<Node*> BeachLine::vertex_graph() {
         vertex_a->edges.push_back(vertex_b);
         vertex_b->edges.push_back(vertex_a);
     }
+    std::cout << "Skipped " << counter << " rays\n";
+    std::cout << "Skipped " << zero_len_counter << " zero length rays\n";
     return graph;
 }
-
-
-//std::vector<Node*> BeachLine::consume_vertex_graph() {
-//    return std::move(vertex_graph_);
-//}
-
-
-//std::vector<Node*> BeachLine::consume_region_graph() {
-//    return std::move(region_graph);
-//}

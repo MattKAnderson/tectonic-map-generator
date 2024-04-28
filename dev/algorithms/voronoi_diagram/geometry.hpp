@@ -7,7 +7,8 @@
 #include <vector>
 #include <Coordinate.hpp>
 
-double euclidean_distance(RealCoordinate& c1, RealCoordinate& c2);
+
+double euclidean_distance(const RealCoordinate& c1, const RealCoordinate& c2);
 
 double toroidal_distance(
     Coordinate& c1, Coordinate& c2, int xsize, int ysize

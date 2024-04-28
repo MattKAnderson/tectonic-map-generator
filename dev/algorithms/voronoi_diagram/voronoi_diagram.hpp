@@ -28,11 +28,6 @@ struct hash<Node> {
 }
 
 
-struct LineSegment {
-    RealCoordinate a, b;
-};
-
-
 class VoronoiDiagram {
 public:
     VoronoiDiagram(int seed = 0);
@@ -46,6 +41,7 @@ public:
     std::vector<std::vector<int>> get_diagram();
     std::vector<RealCoordinate> get_seeds();
     std::vector<Node*> consume_vertices();
+    std::vector<Node*> consume_region_graph();
 
 private:
     std::mt19937_64 rng;
@@ -66,17 +62,15 @@ private:
     );
 };
 
+namespace Impl {
 
 class BoundaryRay {
 public:
-    BoundaryRay(
-        const RealCoordinate& r1, const RealCoordinate& r2
-    );
+    BoundaryRay(const RealCoordinate& r1, const RealCoordinate& r2);
     void clip_to_bbox(double xmin, double xmax, double ymin, double ymax);
     RealCoordinate r1;
     RealCoordinate r2;
-    RealCoordinate* lv = nullptr;
-    RealCoordinate* rv = nullptr;
+    RealCoordinate* v[2] = {nullptr, nullptr}; // left, right vertices
 private:
     void clip_infinite_ray(double xmin, double xmax, double ymin, double ymax);
     RealCoordinate* clip_infinite_ray(
@@ -88,245 +82,147 @@ private:
     );
 };
 
-/*
-class BoundaryRay {
+class FortunesAlgorithm {
 public:
-    BoundaryRay() {}
-    ~BoundaryRay();
-    BoundaryRay(const BoundaryRay& other);
-    BoundaryRay& operator=(const BoundaryRay& other);
-    void add_vertex(const RealCoordinate v);
-    RealCoordinate* a = nullptr;
-    RealCoordinate* b = nullptr;
-    double direction;
-};*/
+    FortunesAlgorithm() {}
+    void compute(std::vector<RealCoordinate>& seeds, double min, double max);
+    std::vector<Node*> vertex_graph();
+    std::vector<Node*> region_graph();
+private:
+    int num_seeds;
+    double min;
+    double max;
+    std::vector<BoundaryRay*> rays;
+};
 
-
-class BeachLineItem {
-public:
+struct BeachLineItem {
+    BeachLineItem(const RealCoordinate& coord, int direction): 
+        coord(coord), direction(direction) {}
+    BeachLineItem(const RealCoordinate& coord): coord(coord) {}
+    RealCoordinate coord;
+    int direction;
     BeachLineItem* left = nullptr;
     BeachLineItem* right = nullptr;
     BeachLineItem* parent = nullptr;
-    BeachLineItem() {}
-    BeachLineItem(const RealCoordinate& coord);
-    BeachLineItem(BoundaryRay* ray);
-    BeachLineItem(const BeachLineItem&) = delete;
-    ~BeachLineItem();
-    BeachLineItem& operator=(const BeachLineItem&) = delete;
-    void set_coord(const RealCoordinate& coord);
-    RealCoordinate& coord(); 
-    bool has_coord();
-    //BoundaryRay* associated_ray = nullptr;
-    RealCoordinate** associated_ray_vertex = nullptr;
-private:
-    RealCoordinate* coord_ = nullptr; // focus for regions
+    BoundaryRay* ray = nullptr;
+
 };
 
-
-// TODO: refactor and update the destructor to delete all the used memory
-class BeachLine {
-public:
-    BeachLine(const RealCoordinate& first_p); 
-    ~BeachLine();
-    BeachLineItem* find_intersected_region(const RealCoordinate& loc);
-    BeachLineItem* get_upper_edge(BeachLineItem* node);
-    BeachLineItem* get_lower_edge(BeachLineItem* node);
-    BeachLineItem* get_upper_region(BeachLineItem* node);
-    BeachLineItem* get_lower_region(BeachLineItem* node);
-    BeachLineItem* split_region(
-        BeachLineItem* region, const RealCoordinate& focus
-    );
-    BeachLineItem* close_region(
-        BeachLineItem* region, const RealCoordinate& coord
-    );
-    bool is_behind(double directrix, const RealCoordinate& loc);
-    //void flush(double xlim, double ylim);
-    void clip_rays(double xmin, double xmax, double ymin, double ymax);
-    std::vector<Node*> vertex_graph();
-    //std::vector<Node*> consume_vertex_graph();
-    //std::vector<Node*> consume_region_graph();
-private:
-    BeachLineItem* head = nullptr;
-    //std::vector<BeachLineItem*> finished_regions;
-    std::vector<BoundaryRay*> rays;
-    //std::unordered_map<RealCoordinate, Node*> vertex_map;
-    //std::vector<Node*> vertex_graph_;
-    //std::unordered_map<RealCoordinate, Node*> region_map;
-    //std::vector<Node*> region_graph;
-    BeachLineItem* add_subtree(
-        BeachLineItem* region, const RealCoordinate& focus
-    );
-    void record_edge(const RealCoordinate& a, const RealCoordinate& b);
-    void link_regions(
-        const RealCoordinate& a, const RealCoordinate& b,
-        const RealCoordinate& c
-    ); 
-};
-
-
-struct FortunesAlgoEvent {
+struct Event {
     RealCoordinate coord;
     RealCoordinate* intersect_point = nullptr;
     BeachLineItem* associated_region = nullptr;
-    FortunesAlgoEvent(RealCoordinate& coord);
-    FortunesAlgoEvent(RealCoordinate& coord, RealCoordinate& intersect);
-    FortunesAlgoEvent(const FortunesAlgoEvent& other);
-    ~FortunesAlgoEvent();
-    FortunesAlgoEvent& operator=(const FortunesAlgoEvent& other);
-    bool operator< (const FortunesAlgoEvent& other) const;
-    bool operator> (const FortunesAlgoEvent& other) const;
-    bool operator== (const FortunesAlgoEvent& other) const;
-    friend std::ostream& operator<<(std::ostream& os, const FortunesAlgoEvent& e);
+    Event(
+        const RealCoordinate& coord, const RealCoordinate& intersect, 
+        BeachLineItem* associated_region
+    );
+    Event(const RealCoordinate& coord);
+    Event(const RealCoordinate& coord, const RealCoordinate& intersect);
+    Event(const Event& other);
+    ~Event();
+    Event& operator=(const Event& other);
+    bool operator< (const Event& other) const;
+    bool operator> (const Event& other) const;
+    bool operator== (const Event& other) const;
 };
 
+class BeachLine {
+public:
+    BeachLine(const RealCoordinate& f1, const RealCoordinate& f2);
+    BeachLine(const BeachLine& other) = delete;
+    ~BeachLine();
+    BeachLineItem* get_upper_edge(BeachLineItem* region);
+    BeachLineItem* get_lower_edge(BeachLineItem* region);
+    BeachLineItem* get_upper_region(BeachLineItem* edge);
+    BeachLineItem* get_lower_region(BeachLineItem* edge);
+    BeachLineItem* find_intersected_region(const RealCoordinate& c);
+    BeachLineItem* head = nullptr;
+    std::vector<BeachLineItem*> closed_regions;
+};
 
 inline BoundaryRay::BoundaryRay(
     const RealCoordinate& r1, const RealCoordinate& r2
 ): r1(r1), r2(r2) {}
 
+inline Event::Event(const RealCoordinate& coord): coord(coord) {}
 
-/*
-inline BoundaryRay::~BoundaryRay() {
-    delete a;
-    delete b;
-}
+inline Event::Event(
+    const RealCoordinate& coord, const RealCoordinate& intersect,
+    BeachLineItem* associated_region
+): coord(coord), intersect_point(new RealCoordinate(intersect)), 
+   associated_region(associated_region) {}
 
+inline Event::Event(const RealCoordinate& coord, const RealCoordinate& intersect):
+coord(coord), intersect_point(new RealCoordinate(intersect)) {}
 
-inline BoundaryRay::BoundaryRay(const BoundaryRay& other) {
-    if (other.a != nullptr) {
-        a = new RealCoordinate(*other.a);
-    }
-    if (other.b != nullptr) {
-        b = new RealCoordinate(*other.b);
-    }
-}
-
-
-inline BoundaryRay& BoundaryRay::operator=(const BoundaryRay& other) {
-    if (this == &other) {
-        return *this;
-    }
-    BoundaryRay ray(other);
-    std::swap(this->a, ray.a);
-    std::swap(this->b, ray.b);
-}
-*/
-
-inline FortunesAlgoEvent::FortunesAlgoEvent(RealCoordinate& coord): 
-    coord(coord) {}
-
-
-inline FortunesAlgoEvent::FortunesAlgoEvent(RealCoordinate& coord, RealCoordinate& intersect): 
-    coord(coord), intersect_point(new RealCoordinate(intersect)) {}
-    
-
-inline FortunesAlgoEvent::FortunesAlgoEvent(const FortunesAlgoEvent& other) {
+inline Event::Event(const Event& other) {
     coord = other.coord;
     associated_region = other.associated_region;
     if (other.intersect_point) {
         intersect_point = new RealCoordinate(*other.intersect_point);
     }
 }
-    
 
-inline FortunesAlgoEvent::~FortunesAlgoEvent() {
+inline Event::~Event() {
     delete intersect_point;
 }
-    
 
-inline FortunesAlgoEvent& FortunesAlgoEvent::operator=(
-    const FortunesAlgoEvent& other
-) {
-    if (this != &other) {
-        coord = other.coord;
-        associated_region = other.associated_region;
+inline Event& Event::operator=(const Event& other) {
+    if (this == &other) {
+        return *this;
+    }
+    coord = other.coord;
+    associated_region = other.associated_region;
+    delete intersect_point;
+    if (other.intersect_point) {
+        intersect_point = new RealCoordinate(*other.intersect_point);
+    } 
+    else {
         intersect_point = nullptr;
-        if (other.intersect_point) {
-            intersect_point = new RealCoordinate(*other.intersect_point);
-        }
     }
     return *this;
 }
-    
 
-inline bool FortunesAlgoEvent::operator< (
-    const FortunesAlgoEvent& other
-) const {
+inline bool Event::operator<(const Event& other) const {
     return (
-        coord.x < other.coord.x 
+        coord.x < other.coord.x
+        || (coord.x == other.coord.x && coord.y < other.coord.y)
+    );
+}
+
+inline bool Event::operator>(const Event& other) const {
+    return (
+        coord.x > other.coord.x 
         || (coord.x == other.coord.x && coord.y > other.coord.y)
     );
 }
-    
 
-inline bool FortunesAlgoEvent::operator> (
-    const FortunesAlgoEvent& other
-) const {
-    return (
-        coord.x > other.coord.x
-        || coord.x == other.coord.x && coord.y > other.coord.y
-    );
-}
-
-
-inline bool FortunesAlgoEvent::operator== (
-    const FortunesAlgoEvent& other
-) const {
+inline bool Event::operator==(const Event& other) const {
     return coord.x == other.coord.x && coord.y == other.coord.y;
 }
-    
 
-inline std::ostream& operator<<(std::ostream& os, const FortunesAlgoEvent& e) {
-    os << "coord: (" << e.coord.x << ", " << e.coord.y << ")";
-    if (e.intersect_point == nullptr) {
-        os << ", intersect: nullptr";
-    }
+inline BeachLine::BeachLine(const RealCoordinate& f1, const RealCoordinate& f2) {
+    double eps = 1e-10;
+    double x;
+    if (f1.x < f2.x + eps && f1.x > f2.x - eps) {
+        x = std::numeric_limits<double>::min();
+    } 
     else {
-        os << ", intersect: (" << e.intersect_point->x << ", " << e.intersect_point->y << ")";
+        x = parabola_x_from_y(f2.x, f1, f2.y);
     }
-    if (e.associated_region == nullptr) {
-        os << ", associated_region: nullptr";
-    }
-    else {
-        os << ", associated_region: exists";
-    }
-    return os;
+    int direction = f2.y > f1.y ? 0 : 1;
+    head = new BeachLineItem{{x, f2.y}, direction};
+    head->right = new BeachLineItem{{x, f2.y}, (direction ^ 1)};
+    head->right->parent = head;
+    head->left = new BeachLineItem{f1};
+    head->left->parent = head;
+    head->right->right = new BeachLineItem{f1};
+    head->right->right->parent = head->right;
+    head->right->left = new BeachLineItem{f2};
+    head->right->left->parent = head->right;
 }
-
-
-inline BeachLineItem::BeachLineItem(const RealCoordinate& coord): 
-    coord_(new RealCoordinate(coord)) {};
-    
-
-inline BeachLineItem::~BeachLineItem() {
-    delete coord_;
-}
-
-
-inline void BeachLineItem::set_coord(const RealCoordinate& coord) {
-    delete coord_;
-    coord_ = new RealCoordinate(coord);
-}
-
-
-inline RealCoordinate& BeachLineItem::coord() {
-    return *coord_;
-}
-
-
-inline bool BeachLineItem::has_coord() {
-    return coord_ != nullptr;
-}
-
-
-inline BeachLine::BeachLine(const RealCoordinate& first_p): 
-    head(new BeachLineItem(first_p)) {}; 
-
 
 inline BeachLine::~BeachLine() {
-    if (head == nullptr) {
-        return;
-    }
     std::vector<BeachLineItem*> item_stack;
     item_stack.push_back(head);
     while (!item_stack.empty()) {
@@ -340,5 +236,8 @@ inline BeachLine::~BeachLine() {
         }
         delete top;
     }
+    for (auto* region : closed_regions) {
+        delete region;
+    }
 }
-
+} // namespace Impl

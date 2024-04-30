@@ -93,187 +93,6 @@ private:
     int num_seeds;
     double min;
     double max;
-    std::vector<BoundaryRay*> rays;
-};
-
-struct BeachLineItem {
-    BeachLineItem(const RealCoordinate& coord, int direction): 
-        coord(coord), direction(direction) {}
-    BeachLineItem(const RealCoordinate& coord): coord(coord) {}
-    RealCoordinate coord;
-    int direction;
-    BeachLineItem* left = nullptr;
-    BeachLineItem* right = nullptr;
-    BeachLineItem* parent = nullptr;
-    BoundaryRay* ray = nullptr;
-
-};
-
-struct Event {
-    RealCoordinate coord;
-    RealCoordinate* intersect_point = nullptr;
-    BeachLineItem* associated_region = nullptr;
-    Event(
-        const RealCoordinate& coord, const RealCoordinate& intersect, 
-        BeachLineItem* associated_region
-    );
-    Event(const RealCoordinate& coord);
-    Event(const RealCoordinate& coord, const RealCoordinate& intersect);
-    Event(const Event& other);
-    ~Event();
-    Event& operator=(const Event& other);
-    bool operator< (const Event& other) const;
-    bool operator> (const Event& other) const;
-    bool operator== (const Event& other) const;
-};
-
-class BeachLine {
-public:
-    BeachLine(const RealCoordinate& f1, const RealCoordinate& f2);
-    BeachLine(const BeachLine& other) = delete;
-    ~BeachLine();
-    BeachLineItem* get_upper_edge(BeachLineItem* region);
-    BeachLineItem* get_lower_edge(BeachLineItem* region);
-    BeachLineItem* get_upper_region(BeachLineItem* edge);
-    BeachLineItem* get_lower_region(BeachLineItem* edge);
-    BeachLineItem* find_intersected_region(const RealCoordinate& c);
-    BeachLineItem* head = nullptr;
-    std::vector<BeachLineItem*> closed_regions;
-};
-
-inline BoundaryRay::BoundaryRay(
-    const RealCoordinate& r1, const RealCoordinate& r2
-): r1(r1), r2(r2) {}
-
-inline Event::Event(const RealCoordinate& coord): coord(coord) {}
-
-inline Event::Event(
-    const RealCoordinate& coord, const RealCoordinate& intersect,
-    BeachLineItem* associated_region
-): coord(coord), intersect_point(new RealCoordinate(intersect)), 
-   associated_region(associated_region) {}
-
-inline Event::Event(const RealCoordinate& coord, const RealCoordinate& intersect):
-coord(coord), intersect_point(new RealCoordinate(intersect)) {}
-
-inline Event::Event(const Event& other) {
-    coord = other.coord;
-    associated_region = other.associated_region;
-    if (other.intersect_point) {
-        intersect_point = new RealCoordinate(*other.intersect_point);
-    }
-}
-
-inline Event::~Event() {
-    delete intersect_point;
-}
-
-inline Event& Event::operator=(const Event& other) {
-    if (this == &other) {
-        return *this;
-    }
-    coord = other.coord;
-    associated_region = other.associated_region;
-    delete intersect_point;
-    if (other.intersect_point) {
-        intersect_point = new RealCoordinate(*other.intersect_point);
-    } 
-    else {
-        intersect_point = nullptr;
-    }
-    return *this;
-}
-
-inline bool Event::operator<(const Event& other) const {
-    return (
-        coord.x < other.coord.x
-        || (coord.x == other.coord.x && coord.y < other.coord.y)
-    );
-}
-
-inline bool Event::operator>(const Event& other) const {
-    return (
-        coord.x > other.coord.x 
-        || (coord.x == other.coord.x && coord.y > other.coord.y)
-    );
-}
-
-inline bool Event::operator==(const Event& other) const {
-    return coord.x == other.coord.x && coord.y == other.coord.y;
-}
-
-inline BeachLine::BeachLine(const RealCoordinate& f1, const RealCoordinate& f2) {
-    double eps = 1e-10;
-    double x;
-    if (f1.x < f2.x + eps && f1.x > f2.x - eps) {
-        x = std::numeric_limits<double>::min();
-    } 
-    else {
-        x = parabola_x_from_y(f2.x, f1, f2.y);
-    }
-    int direction = f2.y > f1.y ? 0 : 1;
-    head = new BeachLineItem{{x, f2.y}, direction};
-    head->right = new BeachLineItem{{x, f2.y}, (direction ^ 1)};
-    head->right->parent = head;
-    head->left = new BeachLineItem{f1};
-    head->left->parent = head;
-    head->right->right = new BeachLineItem{f1};
-    head->right->right->parent = head->right;
-    head->right->left = new BeachLineItem{f2};
-    head->right->left->parent = head->right;
-}
-
-inline BeachLine::~BeachLine() {
-    std::vector<BeachLineItem*> item_stack;
-    item_stack.push_back(head);
-    while (!item_stack.empty()) {
-        BeachLineItem* top = item_stack.back(); 
-        item_stack.pop_back();
-        if (top->left != nullptr) {
-            item_stack.push_back(top->left);
-        }
-        if (top->right != nullptr) {
-            item_stack.push_back(top->right);
-        }
-        delete top;
-    }
-    for (auto* region : closed_regions) {
-        delete region;
-    }
-}
-} // namespace Impl
-
-namespace Impl2 {
-/*
-class BoundaryRay {
-public:
-    BoundaryRay(const RealCoordinate& r1, const RealCoordinate& r2);
-    void clip_to_bbox(double xmin, double xmax, double ymin, double ymax);
-    RealCoordinate r1;
-    RealCoordinate r2;
-    RealCoordinate* v[2] = {nullptr, nullptr}; // left, right vertices
-private:
-    void clip_infinite_ray(double xmin, double xmax, double ymin, double ymax);
-    RealCoordinate* clip_infinite_ray(
-        double x_int, double y_int, double x0, double y0, double ymin, double ymax
-    );
-    void clip_vertex_to_bbox(
-        RealCoordinate* v, RealCoordinate* other, double xmin, double xmax, 
-        double ymin, double ymax
-    );
-};
-*/
-
-class FortunesAlgorithm {
-public:
-    FortunesAlgorithm() {}
-    void compute(std::vector<RealCoordinate>& seeds, double min, double max);
-    std::vector<Node*> vertex_graph();
-    std::vector<Node*> region_graph();
-private:
-    int num_seeds;
-    double min;
-    double max;
     std::vector<Impl::BoundaryRay*> rays;
 };
 
@@ -281,6 +100,7 @@ struct Event;
 
 struct Arc {
     RealCoordinate focus;
+    bool red = true;
     Arc* left = nullptr;
     Arc* right = nullptr;
     Arc* parent = nullptr;
@@ -305,6 +125,12 @@ public:
 private:
     Arc* head;
     std::vector<Arc*> closed_regions;
+    void insert_balance(Arc* arc);
+    void delete_balance(Arc* arc);
+    void rotate_left(Arc* arc);
+    void rotate_right(Arc* arc);
+    void flip_colors(Arc* arc);
+    bool is_red(Arc* arc);
 };
 
 struct Event {
@@ -324,6 +150,10 @@ struct Event {
     bool operator== (const Event& other) const;
 };
 
+inline BoundaryRay::BoundaryRay(
+    const RealCoordinate& r1, const RealCoordinate& r2
+): r1(r1), r2(r2) {}
+
 inline BeachLine::~BeachLine() {
     std::vector<Arc*> stack = {head};
     while (!stack.empty()) {
@@ -336,7 +166,6 @@ inline BeachLine::~BeachLine() {
         }
         delete arc;
     }
-    std::cout << "About to delete closed regions" << std::endl;
     for (Arc* arc : closed_regions) {
         delete arc;
     }
@@ -399,4 +228,4 @@ inline bool Event::operator>(const Event& other) const {
 inline bool Event::operator==(const Event& other) const {
     return coord.x == other.coord.x && coord.y == other.coord.y;
 }
-}
+} // Impl

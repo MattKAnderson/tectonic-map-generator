@@ -41,10 +41,10 @@ std::vector<std::pair<RealCoordinate, RealCoordinate>> graph_to_line_segments(
 
 int main() {
 
-    int seed = 1213468;
+    int seed = 888468;
     int xsize = 4096;
     int ysize = xsize;
-    int nseeds = 1000;
+    int nseeds = 100000;
 
     VoronoiDiagram voronoi_diagram(seed);
     auto t1 = std::chrono::high_resolution_clock::now();

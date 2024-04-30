@@ -2,14 +2,19 @@ import math
 import matplotlib.pyplot as plt
 import numpy as np
 
-first=3
-directrix = 2270.001
+first=5
+directrix = 1637.7
 xmin = -100
 xmax = directrix + 50.0
 focii = sorted([
-[268, 54],
-[1879, 787],
-[2220, 263]
+    [93.2218, 1717.14],
+    [867.034, 3603.43],
+    [1032.73, 1155.32],
+    [1408.02, 482.122],
+    [1625.39, 2448.81],
+    [1813.1, 2118.05],
+    [2053.86, 2868.69],
+    [2819.13, 4024.52],
 ])
 
 

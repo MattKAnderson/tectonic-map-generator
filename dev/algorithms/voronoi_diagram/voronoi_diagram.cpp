@@ -64,6 +64,7 @@ void VoronoiDiagram::generate_from_seeds(
     this->seeds = seeds;
     Impl::FortunesAlgorithm generator;
     generator.compute(seeds, 0.0, xsize);
+    std::cout << "about to produce vertex graph" << std::endl;
     vertices = generator.vertex_graph();
     regions = generator.region_graph();
     
@@ -387,7 +388,7 @@ std::vector<Node*> FortunesAlgorithm::vertex_graph() {
         vertex_a->edges.push_back(vertex_b);
         vertex_b->edges.push_back(vertex_a);
     }
-    std::cout << "Skipped " << counter << " rays\n";
+    //std::cout << "Skipped " << counter << " rays\n";
     return graph; 
 }
 
@@ -396,9 +397,9 @@ std::vector<Node*> FortunesAlgorithm::region_graph() {
     graph.reserve(num_seeds);
     std::unordered_map<RealCoordinate, Node*> region_map;
     for (BoundaryRay* ray : rays) {
-        if (ray == nullptr) {
-            std::cout << "Hit ray that was a nullptr" << std::endl;
-        }
+        //if (ray == nullptr) {
+        //    std::cout << "Hit ray that was a nullptr" << std::endl;
+        //}
         Node* region_a = nullptr;
         Node* region_b = nullptr;
         if (auto s = region_map.find(ray->r1); s == region_map.end()) {
@@ -580,14 +581,428 @@ BeachLineItem* BeachLine::find_intersected_region(const RealCoordinate& c) {
         }
         else {
             // TODO: proper handling of the degenerate case
-            std::cout << "Hit degenerate case, treating as c.y < y\n";
-            std::cout << "    focus_a: (" << focus_a.x << ", " << focus_a.y << ")\n"
-                      << "    focus_b: (" << focus_b.x << ", " << focus_b.y << ")\n"
-                      << "    loc    : (" << c.x << ", " << c.y << ")\n"
-                      << "    y_inter:  " << y << std::endl;
+            //std::cout << "Hit degenerate case, treating as c.y < y\n";
+            //std::cout << "    focus_a: (" << focus_a.x << ", " << focus_a.y << ")\n"
+            //          << "    focus_b: (" << focus_b.x << ", " << focus_b.y << ")\n"
+            //          << "    loc    : (" << c.x << ", " << c.y << ")\n"
+            //          << "    y_inter:  " << y << std::endl;
             node = node->right;
         }
     }
     return node;
 }
 } // namespace Impl
+
+namespace Impl2 {
+
+Arc* BeachLine::find_intersected_arc(const RealCoordinate& c) {
+    Arc* node = head;
+    double y;
+    
+    while (true) {
+        //std::cout << c.y << std::endl;
+        //std::cout << node << std::endl;
+        if (node->left != nullptr) {
+            y = parabolae_y_intercept(c.x, node->upper->focus, node->focus);
+            //std::cout << "upper y-int: " << y << std::endl;
+            if (c.y > y) {
+                node = node->left;
+                continue;
+            } 
+        }
+        if (node->right != nullptr) {
+            y = parabolae_y_intercept(c.x, node->focus, node->lower->focus);
+            //std::cout << "lower y-int: " << y << std::endl;
+            if (c.y < y) {
+                node = node->right;
+                continue;
+            }
+        }
+        return node;
+    }
+}   
+
+void BeachLine::insert_arc_above(Arc* arc, Arc* new_arc) {
+    if (arc->left == nullptr) {
+        arc->left = new_arc;
+        new_arc->parent = arc;
+        if (arc->upper != nullptr) {
+            arc->upper->lower = new_arc;
+        }
+    }
+    else {
+        arc->upper->right = new_arc;
+        new_arc->parent = arc->upper;
+        arc->upper->lower = new_arc;
+    }
+    new_arc->upper = arc->upper;
+    new_arc->lower = arc;
+    arc->upper = new_arc;
+    // TODO balance op
+}
+
+/*
+void BeachLine::insert_arc_below(Arc* arc, Arc* new_arc) {
+    if (arc->right == nullptr) {
+        arc->right = new_arc;
+        new_arc->parent = arc;
+        if (arc->lower != nullptr) {
+            arc->lower->upper = new_arc;
+        }
+    }
+    else {
+        arc->lower->left = new_arc;
+        new_arc->parent = arc->lower;
+        arc->lower->upper = new_arc;
+    }
+    new_arc->lower = arc->lower;
+    new_arc->upper = arc;
+    arc->lower = new_arc;
+    // TODO: balance op
+}*/
+
+void BeachLine::remove_arc(Arc* arc) {
+    
+    // Handle the doubly linked list portion of this
+    // Data structure
+    if (arc->upper){
+        arc->upper->lower = arc->lower;
+    }
+    if (arc->lower) {
+        arc->lower->upper = arc->upper;
+    }
+
+    if (arc->left == nullptr) {
+        if (arc->right == nullptr) {
+            // leaf node case
+            if (arc == head) { head = nullptr; }
+            else if (arc->parent->left == arc) { arc->parent->left = nullptr; }
+            else { arc->parent->right = nullptr; }
+
+        }
+        else {
+            // single child on right case
+            arc->right->parent = arc->parent;
+            if (arc == head) { head = arc->right; }
+            else if (arc->parent->left == arc) { arc->parent->left = arc->right; }
+            else {arc->parent->right = arc->right; }
+        } 
+    }
+    else if (arc->right == nullptr) {
+        // single child on left case
+        arc->left->parent = arc->parent;
+        if (arc == head) { head = arc->left; }
+        else if (arc->parent->left == arc) { arc->parent->left = arc->left; }
+        else {arc->parent->right = arc->left; }
+    }
+    else {
+        // two children case
+        Arc* upper = arc->upper;
+
+        // connect upper's child to upper's parent
+        if (upper->parent->left == upper) { upper->parent->left = upper->left; }
+        else { upper->parent->right = upper->left; }
+        if (upper->left) { upper->left->parent = upper->parent; }
+
+        // put upper in place of arc
+        upper->parent = arc->parent;
+        upper->left = arc->left;
+        upper->right = arc->right;
+        if (arc->left) { arc->left->parent = upper; }
+        if (arc->right) { arc->right->parent = upper; }
+        if (arc == head) { head = upper; }
+        else if (arc->parent->left == arc) { arc->parent->left = upper; }
+        else { arc->parent->right = upper; }
+    }
+    arc->active = false;
+    closed_regions.push_back(arc);
+
+}
+
+void BeachLine::reserve(int n) {
+    closed_regions.reserve(n);
+}
+
+Event new_intersection_event(RealCoordinate& intersect, Arc* closing_region) {
+    double dist = euclidean_distance(closing_region->focus, intersect);
+    Event event({intersect.x + dist, intersect.y});
+    event.intersect_point = new RealCoordinate(intersect);
+    event.associated_arc = closing_region;
+    return event;
+}
+
+void site_event(
+    std::priority_queue<Event, std::vector<Event>, std::greater<Event>>& event_queue,
+    std::vector<Impl::BoundaryRay*>& rays,
+    BeachLine& beach_line,
+    const RealCoordinate& focus
+) {
+    //std::cout << "Handling site event at: (" << focus.x << ", " << focus.y << ")" << std::endl;
+    Arc* region = beach_line.find_intersected_arc(focus);
+    //std::cout << "Intersected region: (" << region->focus.x << ", " << region->focus.y << ")" << std::endl;
+    Arc* new_region = new Arc{focus};
+    Arc* split_region = new Arc{region->focus};
+
+    //std::cout << "Region is:        (" << region->focus.x << ", " << region->focus.y << ")\n";
+    //if (region->upper == nullptr) {
+    //    std::cout << "Region upper was nullptr" << std::endl;
+    //    if (region->left == nullptr) {
+    //        std::cout << "Region left was nullptr too" << std::endl;
+    //    }
+    //}
+    beach_line.insert_arc_above(region, new_region);
+    beach_line.insert_arc_above(new_region, split_region);
+
+    rays.push_back(new Impl::BoundaryRay(focus, region->focus));
+    split_region->upper_ray = region->upper_ray;
+    split_region->lower_ray = rays.back();
+    region->upper_ray = rays.back();
+    new_region->upper_ray = rays.back();
+    new_region->lower_ray = rays.back();
+
+    Arc* upper_upper = split_region->upper;
+    Arc* lower_lower = region->lower;
+    if (upper_upper) {
+        //std::cout << "There was an upper" << std::endl;
+        RealCoordinate intersect = triangle_circumcenter(
+            focus, split_region->focus, upper_upper->focus
+        );
+        //std::cout << "possible new intersect: (" << intersect.x << ", " << intersect.y << ")\n";
+        if (focus.y < intersect.y) {
+           event_queue.push(new_intersection_event(intersect, split_region)); 
+           //std::cout << "    Accepted\n";
+        }
+       // else {
+       //     std::cout << "    Rejected\n";
+       // }
+    } 
+    if (lower_lower) {
+        //std::cout << "There was a lower" << std::endl;
+        RealCoordinate intersect = triangle_circumcenter(
+            focus, region->focus, lower_lower->focus
+        );
+        //std::cout << "possible new intersect: (" << intersect.x << ", " << intersect.y << ")\n";
+        if (focus.y > intersect.y) {
+            event_queue.push(new_intersection_event(intersect, region));
+        //    std::cout << "    Accepted\n";
+        }
+        //else {
+        //    std::cout << "    Rejected\n";
+        //}
+    }
+}
+
+double ray_direction(
+    const RealCoordinate& intersection,
+    const RealCoordinate& focus_1,
+    const RealCoordinate& focus_2,
+    const RealCoordinate& focus_3
+) {
+    if (focus_1.x == focus_2.x) {
+        //similar for f1.y == f2.y ???
+        return (focus_3.x - focus_1.x) * (intersection.x - focus_1.x);
+    }
+    else if (focus_1.y == focus_2.y) {
+
+    }
+    else if (focus_1.x > focus_2.x) {
+        return (intersection.y - focus_1.y) * (focus_2.y - focus_1.y);
+    }
+    else {
+        return (intersection.y - focus_2.y) * (focus_1.y - focus_2.y);
+    }
+}
+
+void intersection_event(
+    std::priority_queue<Event, std::vector<Event>, std::greater<Event>>& event_queue,
+    std::vector<Impl::BoundaryRay*>& rays,
+    BeachLine& beach_line,
+    const Event& event
+) {
+    const RealCoordinate& intersect = *event.intersect_point;
+    //std::cout << "Handling intersection event known at: (" << event.coord.x << ", " << event.coord.y << ")\n"
+    //          << " intersect: (" << intersect.x << ", " << intersect.y << ")" << std::endl;
+    Arc* arc = event.associated_arc;
+    Arc* u_arc = arc->upper;
+    Arc* l_arc = arc->lower;
+    
+    //std::cout << "arc is:   (" << arc->focus.x << ", " << arc->focus.y << ")" << std::endl;
+    //std::cout << "u_arc is: (" << u_arc->focus.x << ", " << u_arc->focus.y << ")" << std::endl;
+//std::cout << "l_arc is: (" << l_arc->focus.x << ", " << l_arc->focus.y << ")" << std::endl;
+    
+    int uv = ray_direction(intersect, arc->focus, u_arc->focus, l_arc->focus) > 0;
+    int lv = ray_direction(intersect, arc->focus, l_arc->focus, u_arc->focus) > 0;
+
+    //if (arc->upper_ray == nullptr) {
+    //    std::cout << "Upper ray was null" << std::endl;
+    //}
+    //if (arc->lower_ray == nullptr) {
+    //    std::cout << "Lower ray as null" << std::endl;
+    //}
+    arc->upper_ray->v[uv] = new RealCoordinate(intersect);
+    arc->lower_ray->v[lv] = new RealCoordinate(intersect);
+
+    //std::cout << "About to remove arc" << std::endl;
+    beach_line.remove_arc(arc);
+    //std::cout << "Removed arc" << std::endl;
+
+    const RealCoordinate& fu = u_arc->focus;
+    const RealCoordinate& fl = l_arc->focus;
+    rays.push_back(new Impl::BoundaryRay(fu, fl));
+    rays.back()->v[(fl.y > fu.y)] = new RealCoordinate(intersect);
+    u_arc->lower_ray = rays.back();
+    l_arc->upper_ray = rays.back();
+    Arc* uu_arc = u_arc->upper;
+    Arc* ll_arc = l_arc->lower;
+    if (uu_arc && fl != uu_arc->focus) {
+        const RealCoordinate& fuu = uu_arc->focus;
+        RealCoordinate new_intersect = triangle_circumcenter(fl, fu, fuu);
+        double known_at_x = new_intersect.x + euclidean_distance(new_intersect, fu);
+        //std::cout << "possible new intersect: (" << new_intersect.x << ", " << new_intersect.y << ")\n";
+        if (new_intersect != intersect 
+            && event.coord.x < known_at_x 
+            && (fu.y - fl.y) * (new_intersect.x - intersect.x) >= 0.0
+        ) {
+            RealCoordinate u_edge = parabola_intercept(event.coord.x, fuu, fu);
+            if ((fuu.y - fu.y) * (new_intersect.x - u_edge.x) >= 0.0) {
+                event_queue.push({{known_at_x, new_intersect.y}, new_intersect, u_arc});
+            }
+           // std::cout << "    Accepted" << std::endl;
+        }
+        else {
+            //std::cout << "    Rejected" << std::endl;
+        }
+
+    }
+    if (ll_arc && u_arc->focus != ll_arc->focus) {
+        const RealCoordinate& fll = ll_arc->focus;
+        RealCoordinate new_intersect = triangle_circumcenter(fu, fl, fll);
+        double known_at_x = new_intersect.x + euclidean_distance(new_intersect, fl);
+        //std::cout << "possible new intersect: (" << new_intersect.x << ", " << new_intersect.y << ")\n";
+        if (new_intersect != intersect
+            && event.coord.x < known_at_x
+            && (fu.y - fl.y) * (new_intersect.x  - intersect.x) >= 0.0
+        ) {
+            RealCoordinate l_edge = parabola_intercept(event.coord.x, fl, fll);
+            if ((fl.y - fll.y) * (new_intersect.x - l_edge.x) >= 0.0) {
+                event_queue.push({{known_at_x, new_intersect.y}, new_intersect, l_arc});
+            }
+            //std::cout << "    Accepted" << std::endl;
+        }
+        else {
+            //std::cout << "    Rejected" << std::endl;
+        }
+    }
+}
+
+void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, double max) {
+    using namespace Impl2; 
+    num_seeds = seeds.size();
+    rays = {};
+    rays.reserve(3 * num_seeds);
+    std::priority_queue<Event, std::vector<Event>, std::greater<Event>> event_queue; 
+    for (const RealCoordinate& seed : seeds) { 
+        if (
+            (seed.x > 76 && seed.x < 79 && seed.y > 3970 && seed.y < 3975)
+            || (seed.x > 80 && seed.x < 85 && seed.y > 3965 & seed.y < 3970)
+            || (seed.x < 90 && seed.x > 85 && seed.y >3968 && seed.y < 3973)
+        ) {
+            std::cout << std::setprecision(12) << "(" << seed.x << ", " << seed.y << ")\n";
+        }
+        event_queue.emplace(seed); 
+    }
+    
+    const RealCoordinate s1 = event_queue.top().coord; event_queue.pop();
+    //std::cout << "(" << s1.x << ", " << s1.y << ")\n";
+    BeachLine beach_line(s1);
+
+    while (!event_queue.empty()) {
+        const Event event = event_queue.top(); event_queue.pop();
+        if (event.intersect_point == nullptr) {
+            site_event(event_queue, rays, beach_line, event.coord);
+        }
+        else if (event.associated_arc->active) {
+            intersection_event(event_queue, rays, beach_line, event);
+        }
+    }
+    //std::cout << "Done while loop" << std::endl;
+    for (Impl::BoundaryRay* ray : rays) {
+        ray->clip_to_bbox(min, max, min, max);
+    }
+    //std::cout << "Done clipping rays" << std::endl;
+}
+
+
+std::vector<Node*> FortunesAlgorithm::vertex_graph() {
+    //std::cout << "Starting to produce vertex graph" << std::endl;
+    std::vector<Node*> graph;
+    graph.reserve(2 * num_seeds);
+    std::unordered_map<RealCoordinate, Node*> vertex_map;
+    int counter = 0;
+    for (Impl::BoundaryRay* ray : rays) {
+        if (ray->v[0] == nullptr || ray->v[1] == nullptr) {
+            ++counter;
+            continue;
+        }
+        Node* vertex_a = nullptr;
+        Node* vertex_b = nullptr;
+        const RealCoordinate& va = *ray->v[0];
+        const RealCoordinate& vb = *ray->v[1]; 
+        if (auto s = vertex_map.find(va); s == vertex_map.end()) {
+            vertex_a = new Node(va);
+            graph.push_back(vertex_a);
+            vertex_map.emplace(va, graph.back());
+            vertex_a = graph.back();
+        }
+        else {
+            vertex_a = s->second;
+        }
+        if (auto s = vertex_map.find(vb); s == vertex_map.end()) {
+            graph.push_back(new Node(vb));
+            vertex_map.emplace(vb, graph.back());
+            vertex_b = graph.back();
+        }
+        else {
+            vertex_b = s->second;
+        }
+        vertex_a->edges.push_back(vertex_b);
+        vertex_b->edges.push_back(vertex_a);
+    }
+    std::cout << "Skipped " << counter << " rays\n";
+    return graph; 
+}
+
+
+std::vector<Node*> FortunesAlgorithm::region_graph() {
+    std::vector<Node*> graph;
+    graph.reserve(num_seeds);
+    std::unordered_map<RealCoordinate, Node*> region_map;
+    for (Impl::BoundaryRay* ray : rays) {
+        if (ray == nullptr) {
+            std::cout << "Hit ray that was a nullptr" << std::endl;
+        }
+        Node* region_a = nullptr;
+        Node* region_b = nullptr;
+        if (auto s = region_map.find(ray->r1); s == region_map.end()) {
+            region_a = new Node(ray->r1);
+            graph.push_back(region_a);
+            region_map.emplace(ray->r1, region_a);
+        }
+        else {
+            region_a = s->second;
+        }
+        if (auto s = region_map.find(ray->r2); s == region_map.end()) {
+            region_b = new Node(ray->r2);
+            graph.push_back(region_b);
+            region_map.emplace(ray->r2, region_b);
+        }
+        else {
+            region_b = s->second;
+        }
+        region_a->edges.push_back(region_b);
+        region_b->edges.push_back(region_a);
+    }
+    return graph;
+}
+
+} // namespace Impl2

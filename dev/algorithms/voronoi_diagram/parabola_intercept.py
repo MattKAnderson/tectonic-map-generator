@@ -38,7 +38,7 @@ def parabola_intersection(directrix, focus_1, focus_2):
       - (xf2 - xf1) * (xf1 - xd) * (xf2 - xd)
     
     intersects = quadratic_eqn(a, b, c)
-    print(intersects)
+    #print(intersects)
     if len(intersects) == 2 and is_between(intersects[1], yf1, yf2):
         return intersects[1]
     else:
@@ -73,17 +73,18 @@ def plot_parabola(ax, focus, directrix, xmin, xmax, step=0.1):
     ax.plot(pxs, pys)
 
 
-directrix = 882.00001
-focus_1 = [823, 870]
-focus_2 = [815, 853]
+directrix = 88.2390463387
+focus_1 = [77.7805474192, 3971.9240303]
+focus_2 = [80.9499373418, 3966.06876151]
 xmin = 0.0
-xmax = 1000.0
+xmax = 100.0
 
 ax = plt.gca()
 plot_parabola(ax, focus_1, directrix, xmin, xmax)
 plot_parabola(ax, focus_2, directrix, xmin, xmax)
 
 intersection_y = parabola_intersection(directrix, focus_1, focus_2)
+print(intersection_y)
 ax.scatter(
     parabola_x_from_y(directrix, focus_1, intersection_y), 
     intersection_y,

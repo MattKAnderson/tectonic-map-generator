@@ -38,7 +38,7 @@ def quadratic_eqn(a, b, c):
         ]
 
 
-def plot_circle(ax, origin, radius, xstep=0.001):
+def plot_circle(ax, origin, radius, xstep=0.1):
     xmin = origin[0] - radius * 1.33
     xmax = origin[0] + radius * 1.33
 
@@ -62,9 +62,9 @@ def plot_point(ax, pt, color):
     ax.scatter(pt[0], pt[1], color=color, marker="X", s=100)
 
 
-p1 = [12, 18]
-p2 = [8, 10]
-p3 = [14, 13]
+p1 = [912.089, 2060.25]
+p2 = [309.725, 1770.46]
+p3 = [703.251, 1629.64]
 circumcenter = triangle_circumcenter(p1, p2, p3)
 radius = euclidean_distance(circumcenter, p1)
 

@@ -11,6 +11,21 @@
 #include <geometry.hpp>
 
 
+struct VertexNode {
+    RealCoordinate coord;
+    std::vector<VertexNode*> connected;
+    VertexNode(const RealCoordinate& coord): coord(coord) {}
+    bool operator==(const VertexNode& other) const { return coord == other.coord; }
+};
+
+struct RegionNode {
+    RealCoordinate seed;
+    std::vector<RealCoordinate> vertices;
+    std::vector<RegionNode*> adjacent;
+    RegionNode(const RealCoordinate& seed): seed(seed) {}
+    RealCoordinate centroid();
+};
+
 struct Node {
     RealCoordinate coord;
     std::vector<Node*> edges;
@@ -23,6 +38,13 @@ namespace std {
 template <>
 struct hash<Node> {
     size_t operator()(const Node& n) const {
+        return hash<RealCoordinate>()(n.coord);
+    }
+};   
+
+template <>
+struct hash<VertexNode> {
+    size_t operator()(const VertexNode& n) const {
         return hash<RealCoordinate>()(n.coord);
     }
 };   
@@ -41,14 +63,14 @@ public:
     void nesting_iteration_from_seeds(std::vector<RealCoordinate>& seeds);
     std::vector<std::vector<int>> get_diagram();
     std::vector<RealCoordinate> get_seeds();
-    std::vector<Node*> consume_vertices();
+    std::vector<VertexNode*> consume_vertices();
     std::vector<Node*> consume_region_graph();
 
 private:
     std::mt19937_64 rng;
     std::vector<std::vector<int>> diagram;
     std::vector<RealCoordinate> seeds;
-    std::vector<Node*> vertices;
+    std::vector<VertexNode*> vertices;
     std::vector<Node*> regions;
     int nregions;
 
@@ -87,13 +109,23 @@ class FortunesAlgorithm {
 public:
     FortunesAlgorithm() {}
     void compute(std::vector<RealCoordinate>& seeds, double min, double max);
-    std::vector<Node*> vertex_graph();
+    //std::vector<Node*> vertex_graph();
     std::vector<Node*> region_graph();
+    std::vector<VertexNode*> vertex_graph();
+    //std::vector<RegionNode*> region_graph();
 private:
     int num_seeds;
     double min;
     double max;
     std::vector<Impl::BoundaryRay*> rays;
+    std::vector<RealCoordinate> order_region_vertices(
+        std::vector<RealCoordinate>& vertex_pairs,
+        const RealCoordinate& focus
+    );
+    void connect_border_vertices(
+        std::vector<RealCoordinate>& vertex_pairs,
+        const RealCoordinate& focus
+    );
 };
 
 struct Event;

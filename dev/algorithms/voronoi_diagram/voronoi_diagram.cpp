@@ -53,7 +53,7 @@ void VoronoiDiagram::generate(int xsize, int ysize, int nseeds) {
     Impl::FortunesAlgorithm generator;
     generator.compute(seeds, 0.0, xsize);
     vertices = generator.vertex_graph();
-    regions = generator.region_graph();
+    //regions = generator.region_graph();
 }
 
 void VoronoiDiagram::generate_from_seeds(
@@ -66,7 +66,7 @@ void VoronoiDiagram::generate_from_seeds(
     generator.compute(seeds, 0.0, xsize);
     std::cout << "about to produce vertex graph" << std::endl;
     vertices = generator.vertex_graph();
-    regions = generator.region_graph();
+    //regions = generator.region_graph();
     
 }
 
@@ -108,7 +108,7 @@ std::vector<RealCoordinate> VoronoiDiagram::get_seeds() {
     return seeds;
 }
 
-std::vector<Node*> VoronoiDiagram::consume_vertices() {
+std::vector<VertexNode*> VoronoiDiagram::consume_vertices() {
     return std::move(vertices);
 }
 
@@ -557,8 +557,27 @@ void intersection_event(
     }
 }
 
+bool compare_x_lower(const RealCoordinate& a, const RealCoordinate& b) {
+    return a.x < b.x;
+}
+
+bool compare_x_greater(const RealCoordinate& a, const RealCoordinate& b) {
+    return a.x > b.x;
+}
+
+bool compare_y_lower(const RealCoordinate& a, const RealCoordinate& b) {
+    return a.y < b.y;
+}
+
+bool compare_y_greater(const RealCoordinate& a, const RealCoordinate& b) {
+    return a.y > b.y;
+}
+
+
 void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, double max) {
     using namespace Impl; 
+    this->min = min;
+    this->max = max;
     num_seeds = seeds.size();
     rays = {};
     rays.reserve(3 * num_seeds);
@@ -583,39 +602,76 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
 }
 
 
-std::vector<Node*> FortunesAlgorithm::vertex_graph() {
-    std::vector<Node*> graph;
-    graph.reserve(2 * num_seeds);
-    std::unordered_map<RealCoordinate, Node*> vertex_map;
-    //int counter = 0;
+std::vector<VertexNode*> FortunesAlgorithm::vertex_graph() {
+    std::vector<VertexNode*> graph;
+    std::vector<RealCoordinate> x_min_points, x_max_points, y_min_points, y_max_points;
+    std::unordered_map<RealCoordinate, VertexNode*> vertex_map;
     for (BoundaryRay* ray : rays) {
         if (ray->v[0] == nullptr || ray->v[1] == nullptr) {
-            //++counter;
             continue;
         }
-        Node* vertex_a = nullptr;
-        Node* vertex_b = nullptr;
+        for (int i = 0; i < 2; i++) {
+            if (ray->v[i]->x == min) { x_min_points.push_back(*ray->v[i]); }
+            else if (ray->v[i]->x == max) { x_max_points.push_back(*ray->v[i]); }
+            if (ray->v[i]->y == min) { y_min_points.push_back(*ray->v[i]); }
+            else if (ray->v[i]->y == max) { y_max_points.push_back(*ray->v[i]); }
+        }
+        VertexNode* vna = nullptr;
+        VertexNode* vnb = nullptr;
         const RealCoordinate& va = *ray->v[0];
         const RealCoordinate& vb = *ray->v[1]; 
         if (auto s = vertex_map.find(va); s == vertex_map.end()) {
-            vertex_a = new Node(va);
-            graph.push_back(vertex_a);
+            vna = new VertexNode(va);
+            graph.push_back(vna);
             vertex_map.emplace(va, graph.back());
-            vertex_a = graph.back();
         }
         else {
-            vertex_a = s->second;
+            vna = s->second;
         }
         if (auto s = vertex_map.find(vb); s == vertex_map.end()) {
-            graph.push_back(new Node(vb));
+            graph.push_back(new VertexNode(vb));
             vertex_map.emplace(vb, graph.back());
-            vertex_b = graph.back();
+            vnb = graph.back();
         }
         else {
-            vertex_b = s->second;
+            vnb = s->second;
         }
-        vertex_a->edges.push_back(vertex_b);
-        vertex_b->edges.push_back(vertex_a);
+        vna->connected.push_back(vnb);
+        vnb->connected.push_back(vna);
+    }
+    // need to handle cases where a vertex does exist at one of these corners 
+    // this is rare but possible
+    graph.push_back(new VertexNode({min, min}));
+    vertex_map.emplace(RealCoordinate{min, min}, graph.back());
+    graph.push_back(new VertexNode({min, max}));
+    vertex_map.emplace(RealCoordinate{min, max}, graph.back());
+    graph.push_back(new VertexNode({max, min}));
+    vertex_map.emplace(RealCoordinate{max, min}, graph.back());
+    graph.push_back(new VertexNode({max, max}));
+    vertex_map.emplace(RealCoordinate{max, max}, graph.back());
+    std::sort(x_min_points.begin(), x_min_points.end(), compare_y_lower);
+    std::sort(x_max_points.begin(), x_max_points.end(), compare_y_greater);
+    std::sort(y_min_points.begin(), y_min_points.end(), compare_x_greater);
+    std::sort(y_max_points.begin(), y_max_points.end(), compare_x_lower);
+    std::vector<RealCoordinate> boundary_points;
+    boundary_points.reserve(
+        x_min_points.size() + y_min_points.size() + x_max_points.size()
+        + y_max_points.size() + 4
+    );
+    boundary_points.insert(boundary_points.end(), x_min_points.begin(), x_min_points.end());
+    boundary_points.push_back({min, max});
+    boundary_points.insert(boundary_points.end(), y_max_points.begin(), y_max_points.end());
+    boundary_points.push_back({max, max});
+    boundary_points.insert(boundary_points.end(), x_max_points.begin(), x_max_points.end());
+    boundary_points.push_back({max, min});
+    boundary_points.insert(boundary_points.end(), y_min_points.begin(), y_min_points.end());
+    boundary_points.push_back({min, min});
+    VertexNode* start = vertex_map[{min, min}];
+    for (RealCoordinate& point : boundary_points) {
+        VertexNode* next = vertex_map[point];
+        start->connected.push_back(next);
+        next->connected.push_back(start);
+        start = next;
     }
     return graph; 
 }

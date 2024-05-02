@@ -626,6 +626,9 @@ std::vector<Node*> FortunesAlgorithm::region_graph() {
     graph.reserve(num_seeds);
     std::unordered_map<RealCoordinate, Node*> region_map;
     for (BoundaryRay* ray : rays) {
+        if (ray->v[0] == nullptr || ray->v[1] == nullptr) {
+            continue;
+        }
         Node* region_a = nullptr;
         Node* region_b = nullptr;
         if (auto s = region_map.find(ray->r1); s == region_map.end()) {

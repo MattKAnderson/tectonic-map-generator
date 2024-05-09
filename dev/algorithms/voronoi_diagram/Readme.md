@@ -11,3 +11,6 @@ Fortunes Algorithm implemented for producing a voronoi diagram in O(log N) time.
 1. implement RegionNode and VertexNode, RegionNode should define a polygon (ordered list of vertices) and include adjacencies
 1. handle special case where new site.y equals the current intersection of two parabolae (correctness improvement, for large number of seeds)
 1. implement the beach line tree as a red-black tree (runtime performance improvement)
+1. An optimization idea is to pre-allocate space for half-edges, vertices, and arcs. Rather than call new many times. The same could probably
+   also be done for the tree structure. Probably easiest to begin with an implementation for half-edges, vertices, regions, since the max 
+   number can be known up front.

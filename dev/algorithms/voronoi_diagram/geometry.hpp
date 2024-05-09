@@ -29,6 +29,15 @@ RealCoordinate lines_intercept(
     const RealCoordinate& l2a, const RealCoordinate& l2b
 );
 
+bool line_segments_intersect(
+    const RealCoordinate& l1a, const RealCoordinate& l1b,
+    const RealCoordinate& l2a, const RealCoordinate& l2b
+);
+
+bool in_polygon(std::vector<RealCoordinate>& vertices, const RealCoordinate& c);
+
+bool num_is_between(double x, double a, double b);
+
 RealCoordinate midpoint(const RealCoordinate& a, const RealCoordinate& b); 
 
 std::vector<double> quadratic_roots(double a, double b, double c);

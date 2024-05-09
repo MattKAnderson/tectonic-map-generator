@@ -62,6 +62,56 @@ RealCoordinate lines_intercept(
 }
 
 
+bool line_segments_intersect(
+    const RealCoordinate& l1a, const RealCoordinate& l1b, 
+    const RealCoordinate& l2a, const RealCoordinate& l2b
+) {
+    double x_int = lines_intercept(l1a, l1b, l2a, l2b).x;
+    return num_is_between(x_int, l1a.x, l1b.x) && num_is_between(x_int, l2a.x, l2b.x);
+}
+
+
+bool num_is_between(double x, double a, double b) {
+    return std::min(a, b) <= x <= std::max(a, b);
+}
+
+bool in_polygon(std::vector<RealCoordinate>& vertices, const RealCoordinate& c) {
+    if (vertices.size() < 3) {
+        return false;
+    }
+
+    int intersect_count = 0;
+    if (vertices[0].y == c.y
+        && vertices[0].x < c.x 
+        && num_is_between(c.y, vertices[1].y, vertices[vertices.size() - 2].y)
+    ) {
+        intersect_count = 1;
+    }
+    
+    for (int i = 1; i < vertices.size(); ++i) {
+        const RealCoordinate& v1 = vertices[i - 1];
+        const RealCoordinate& v2 = vertices[i];
+        if (v2.y == c.y) {
+            if (v2.x <= c.x && i != vertices.size() - 1) {
+                intersect_count += num_is_between(c.y, v1.y, vertices[i + 1].y);
+                ++i;
+            }
+        }
+        else if (v2.x == v1.x) {
+            intersect_count += v2.x < c.x && num_is_between(c.y, v1.y, v2.y);
+        }
+        else if (v2.y != v1.y) {
+            double m = (v2.y - v1.y) / (v2.x - v1.x);
+            double b = v2.y - m * v2.x;
+            double x_intersect = (c.y - b) / m;
+            if (x_intersect < c.x && num_is_between(x_intersect, v1.x, v2.x)) {
+                ++intersect_count;
+            }
+        }
+    }
+    return intersect_count % 2;
+}
+
 bool on_line_segment(
     RealCoordinate& l1, RealCoordinate& l2, RealCoordinate& p
 ) {

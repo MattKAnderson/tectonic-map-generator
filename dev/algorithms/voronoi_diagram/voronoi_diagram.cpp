@@ -52,7 +52,7 @@ void VoronoiDiagram::generate(int xsize, int ysize, int nseeds) {
     
     Impl::FortunesAlgorithm generator;
     generator.compute(seeds, 0.0, xsize);
-    vertices = generator.vertex_graph();
+    vertices = generator.consume_vertex_graph();
     //regions = generator.region_graph();
 }
 
@@ -65,7 +65,7 @@ void VoronoiDiagram::generate_from_seeds(
     Impl::FortunesAlgorithm generator;
     generator.compute(seeds, 0.0, xsize);
     std::cout << "about to produce vertex graph" << std::endl;
-    vertices = generator.vertex_graph();
+    vertices = generator.consume_vertex_graph();
     //regions = generator.region_graph();
     
 }
@@ -111,11 +111,11 @@ std::vector<RealCoordinate> VoronoiDiagram::get_seeds() {
 std::vector<VertexNode*> VoronoiDiagram::consume_vertices() {
     return std::move(vertices);
 }
-
+/*
 std::vector<Node*> VoronoiDiagram::consume_region_graph() {
     return std::move(regions);
 }
-
+*/
 void VoronoiDiagram::grid_algorithm(
     std::vector<RealCoordinate>& seeds, int xsize, int ysize
 ) {
@@ -153,6 +153,7 @@ std::vector<RealCoordinate> VoronoiDiagram::generate_seeds(
 
 namespace Impl {
 
+/*
 void BoundaryRay::clip_to_bbox(
     double xmin, double xmax, double ymin, double ymax
 ) {
@@ -188,7 +189,8 @@ void BoundaryRay::clip_to_bbox(
         }
     }
 }
-
+*/
+/*
 RealCoordinate* BoundaryRay::clip_infinite_ray(
     double x_int, double y_int, double x0, double y0, double ymin, double ymax
 ) {
@@ -214,7 +216,8 @@ RealCoordinate* BoundaryRay::clip_infinite_ray(
     }
     return new RealCoordinate{x_int, y_int};
 }
-
+*/
+/*
 void BoundaryRay::clip_vertex_to_bbox(
     RealCoordinate* v, RealCoordinate* other, double xmin, double xmax, 
     double ymin, double ymax
@@ -260,11 +263,12 @@ void BoundaryRay::clip_vertex_to_bbox(
         }
     }
 }
+*/
 
 Arc* BeachLine::find_intersected_arc(const RealCoordinate& c) {
     Arc* node = head;
     double y;
-
+    //std::cout << "c: (" << c.x << ", " << c.y << ")" << std::endl;
     // TODO: handle case when c.y == y
     //       it is super rare but I've seen it at 100k seeds
 
@@ -438,42 +442,39 @@ Event new_intersection_event(RealCoordinate& intersect, Arc* closing_region) {
     return event;
 }
 
-void site_event(
-    std::priority_queue<Event, std::vector<Event>, std::greater<Event>>& event_queue,
-    std::vector<Impl::BoundaryRay*>& rays,
-    BeachLine& beach_line,
-    const RealCoordinate& focus
-) {
-    Arc* region = beach_line.find_intersected_arc(focus);
-    Arc* new_region = new Arc{focus};
-    Arc* split_region = new Arc{region->focus};
+void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
+    regions.push_back(new Region{focus});
+    Arc* arc = beach_line.find_intersected_arc(focus);
+    Arc* new_arc = new Arc{focus, regions.back()};
+    Arc* split_arc = new Arc{arc->focus, arc->region};
 
-    beach_line.insert_arc_above(region, new_region);
-    beach_line.insert_arc_above(new_region, split_region);
+    beach_line.insert_arc_above(arc, new_arc);
+    beach_line.insert_arc_above(new_arc, split_arc);
 
-    rays.push_back(new Impl::BoundaryRay(focus, region->focus));
-    split_region->upper_ray = region->upper_ray;
-    split_region->lower_ray = rays.back();
-    region->upper_ray = rays.back();
-    new_region->upper_ray = rays.back();
-    new_region->lower_ray = rays.back();
-
-    Arc* upper_upper = split_region->upper;
-    Arc* lower_lower = region->lower;
+    new_arc->upper_edge = new HalfEdge{new_arc->region};
+    new_arc->lower_edge = new_arc->upper_edge;
+    split_arc->upper_edge = arc->upper_edge;
+    arc->upper_edge = new HalfEdge{arc->region};
+    split_arc->lower_edge = arc->upper_edge;
+    arc->upper_edge->twin = new_arc->upper_edge;
+    new_arc->lower_edge->twin = arc->upper_edge;
+    
+    Arc* upper_upper = split_arc->upper;
+    Arc* lower_lower = arc->lower;
     if (upper_upper) {
         RealCoordinate intersect = triangle_circumcenter(
-            focus, split_region->focus, upper_upper->focus
+            focus, split_arc->focus, upper_upper->focus
         );
         if (focus.y < intersect.y) {
-           event_queue.push(new_intersection_event(intersect, split_region)); 
+           event_queue.push(new_intersection_event(intersect, split_arc)); 
         }
     } 
     if (lower_lower) {
         RealCoordinate intersect = triangle_circumcenter(
-            focus, region->focus, lower_lower->focus
+            focus, arc->focus, lower_lower->focus
         );
         if (focus.y > intersect.y) {
-            event_queue.push(new_intersection_event(intersect, region));
+            event_queue.push(new_intersection_event(intersect, arc));
         }
     }
 }
@@ -488,9 +489,9 @@ double ray_direction(
         //similar for f1.y == f2.y ???
         return (focus_3.x - focus_1.x) * (intersection.x - focus_1.x);
     }
-    else if (focus_1.y == focus_2.y) {
-
-    }
+    //else if (focus_1.y == focus_2.y) {
+    //
+    //}
     else if (focus_1.x > focus_2.x) {
         return (intersection.y - focus_1.y) * (focus_2.y - focus_1.y);
     }
@@ -499,31 +500,37 @@ double ray_direction(
     }
 }
 
-void intersection_event(
-    std::priority_queue<Event, std::vector<Event>, std::greater<Event>>& event_queue,
-    std::vector<Impl::BoundaryRay*>& rays,
-    BeachLine& beach_line,
-    const Event& event
-) {
+void FortunesAlgorithm::intersection_event(const Event& event) {
     const RealCoordinate& intersect = *event.intersect_point;
     Arc* arc = event.associated_arc;
     Arc* u_arc = arc->upper;
     Arc* l_arc = arc->lower;
     
-    int uv = ray_direction(intersect, arc->focus, u_arc->focus, l_arc->focus) > 0;
-    int lv = ray_direction(intersect, arc->focus, l_arc->focus, u_arc->focus) > 0;
+    vertices.push_back(new VertexNode(intersect));
 
-    arc->upper_ray->v[uv] = new RealCoordinate(intersect);
-    arc->lower_ray->v[lv] = new RealCoordinate(intersect);
+    /*
+     *  Double check this logic tomorrow
+     */
+    arc->upper_edge->origin = vertices.back();
+    arc->upper_edge->prev = arc->lower_edge;
+    arc->lower_edge->next = arc->upper_edge;
+    HalfEdge* new_upper_half_edge = new HalfEdge{u_arc->region};
+    HalfEdge* new_lower_half_edge = new HalfEdge{l_arc->region};
+    new_upper_half_edge->twin = new_lower_half_edge;
+    new_upper_half_edge->origin = vertices.back();
+    new_upper_half_edge->prev = u_arc->lower_edge;
+    u_arc->lower_edge->next = new_upper_half_edge;
+    u_arc->lower_edge = new_upper_half_edge;
+    new_lower_half_edge->twin = new_upper_half_edge;
+    new_lower_half_edge->next = l_arc->upper_edge;
+    l_arc->upper_edge->prev = new_lower_half_edge;
+    l_arc->upper_edge->origin = vertices.back();
+    l_arc->upper_edge = new_lower_half_edge;
 
     beach_line.remove_arc(arc);
 
     const RealCoordinate& fu = u_arc->focus;
     const RealCoordinate& fl = l_arc->focus;
-    rays.push_back(new BoundaryRay(fu, fl));
-    rays.back()->v[(fl.y > fu.y)] = new RealCoordinate(intersect);
-    u_arc->lower_ray = rays.back();
-    l_arc->upper_ray = rays.back();
     Arc* uu_arc = u_arc->upper;
     Arc* ll_arc = l_arc->lower;
     if (uu_arc && fl != uu_arc->focus) {
@@ -579,29 +586,270 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
     this->min = min;
     this->max = max;
     num_seeds = seeds.size();
-    rays = {};
-    rays.reserve(3 * num_seeds);
-    std::priority_queue<Event, std::vector<Event>, std::greater<Event>> event_queue; 
+    //rays = {};
+    regions = {};
+    regions.reserve(num_seeds);
+    //rays.reserve(3 * num_seeds);
+    event_queue = {};
     for (const RealCoordinate& seed : seeds) { event_queue.emplace(seed); }
-    
     const RealCoordinate s1 = event_queue.top().coord; event_queue.pop();
-    BeachLine beach_line(s1);
-
+    regions.push_back(new Region{s1});
+    beach_line = BeachLine(s1, regions.back());
     while (!event_queue.empty()) {
         const Event event = event_queue.top(); event_queue.pop();
-        if (event.intersect_point == nullptr) {
-            site_event(event_queue, rays, beach_line, event.coord);
+        if (event.intersect_point == nullptr) { site_event(event.coord); }
+        else if (event.associated_arc->active) { intersection_event(event); }
+    }
+
+    std::cout << "Before getting size of vertices" << std::endl;
+    std::cout << "Size of vertices: " << vertices.size() << std::endl;
+
+    //for (BoundaryRay* ray : rays) {
+    //    ray->clip_to_bbox(min, max, min, max);
+    //}
+    //add_vertices_for_bounds_corners(); 
+    //connect_vertices_on_bounds();
+    //for (Region* region : regions) {
+    //    region->prune_rays();
+    //    region->draw_rays_on_bounds(min, max);
+    //}
+}
+
+std::vector<VertexNode*> FortunesAlgorithm::consume_vertex_graph() {
+    std::cout << "Consuming vertex graph" << std::endl;
+    std::cout << "Size of regions: " << regions.size() << std::endl;
+    for (Region* region : regions) {
+        HalfEdge* edge_ptr = region->an_edge;
+        if (region->an_edge == nullptr) {
+            continue;
         }
-        else if (event.associated_arc->active) {
-            intersection_event(event_queue, rays, beach_line, event);
+        int counter = 0;
+        while (edge_ptr->next != region->an_edge && counter != 1000) {
+            edge_ptr->origin->connected.push_back(edge_ptr->next->origin);
+            ++counter;
+        }
+        if (counter == 1000) {
+            std::cout << "Hit counter of 1000" << std::endl;
+        }
+        edge_ptr->origin->connected.push_back(edge_ptr->next->origin);
+    }
+    return std::move(vertices);
+}
+
+std::vector<RegionNode*> FortunesAlgorithm::consume_region_graph() {
+    return region_graph_from_regions();
+}
+
+std::vector<RegionNode*> FortunesAlgorithm::region_graph_from_regions() {
+    std::vector<RegionNode*> nodes;
+    std::unordered_map<Region*, RegionNode*> node_map;
+    nodes.reserve(regions.size());
+    for (Region* region : regions) {
+        nodes.emplace_back();
+        node_map.insert({region, nodes.back()});
+    }
+    for (Region* region : regions) {
+        RegionNode* this_region = node_map[region];
+        HalfEdge* edge_ptr = region->an_edge;
+        while (edge_ptr->next != region->an_edge) {
+            this_region->vertices.push_back(edge_ptr->origin->coord);
+            this_region->adjacent.push_back(node_map[edge_ptr->twin->region]);
+            edge_ptr = edge_ptr->next;
+        }
+        this_region->vertices.push_back(edge_ptr->origin->coord);
+    }
+    return std::move(nodes);
+}
+
+/*
+void FortunesAlgorithm::add_vertices_for_bounds_corners() {
+    // need to iterate through to ensure that a duplicate is not being added here
+    // this would be more efficient to do from the connect vertices on bounds method
+    vertices.push_back(new VertexNode({min, min}));
+    vertices.push_back(new VertexNode({min, max}));
+    vertices.push_back(new VertexNode({max, max}));
+    vertices.push_back(new VertexNode({max, min}));
+}
+
+bool FortunesAlgorithm::compare_bounds_vertices(
+    VertexNode* va, VertexNode* vb
+) {
+    const RealCoordinate& a = va->coord;
+    const RealCoordinate& b = vb->coord;
+    if (a.x == min) { return (b.x != min) || (a.y < b.y); }
+    else if (a.y == max) { return (b.x != min) || (b.y == max && b.x > a.x); } 
+    else if (a.x == max) { return (b.y == min && b.x != min) || (b.x == max && a.y > b.y); }
+    else { return b.y == min && b.x < a.x && b.x != min; }
+}
+
+void FortunesAlgorithm::connect_vertices_on_bounds() {
+    std::vector<VertexNode*> bounds_vertices;
+    for (VertexNode* vertex : vertices) {
+        const RealCoordinate& c = vertex->coord;
+        if (c.x == min || c.x == max || c.y == min || c.y == max) {
+            bounds_vertices.push_back(vertex);
         }
     }
+    std::sort(bounds_vertices.begin(), bounds_vertices.end(), compare_bounds_vertices);
+    for (int i = 0; i < bounds_vertices.size() - 1; i++) {
+        bounds_vertices[i]->connected.push_back(bounds_vertices[i + 1]);
+        bounds_vertices[i + 1]->connected.push_back(bounds_vertices[i]);
+    }
+    bounds_vertices[0]->connected.push_back(bounds_vertices.back());
+    bounds_vertices.back()->connected.push_back(bounds_vertices[0]);
+}
+*/
+/*
+void Region::add_ray(BoundaryRay* ray) {
+    rays.push_back(ray);
+}
+
+void Region::add_adjacent(Region* region) {
+    adjacent.push_back(region);
+}
+
+void Region::prune_rays() {
+    std::vector<BoundaryRay*> pruned_rays;
     for (BoundaryRay* ray : rays) {
-        ray->clip_to_bbox(min, max, min, max);
+        if (ray->v[0] != nullptr && ray->v[1] != nullptr) {
+            pruned_rays.push_back(ray);
+        }
+    }
+    rays = std::move(pruned_rays);
+}
+
+void delete_if_exists_add_if_not(
+    std::vector<VertexNode*>& nodes,
+    std::vector<RealCoordinate>& direction,
+    VertexNode* node,
+    VertexNode* prev
+) {
+    if (auto s = std::find(nodes.begin(), nodes.end(), node); s == nodes.end()) {
+        nodes.push_back(node);
+        direction.emplace_back(
+            node->coord.x - prev->coord.x, node->coord.y - prev->coord.y
+        );
+    }
+    else {
+        int index = std::distance(s, nodes.begin());
+        nodes[index] = nodes.back();
+        nodes.pop_back();
+        direction[index] = direction.back();
+        direction.pop_back();
     }
 }
 
+void Region::draw_rays_on_bounds(double min, double max) {
+    std::vector<VertexNode*> boundary_nodes;
+    std::vector<RealCoordinate> direction;
+    for (BoundaryRay* ray : rays) {
+        const RealCoordinate& v0 = ray->v[0]->coord;
+        const RealCoordinate& v1 = ray->v[1]->coord;
+        if (v0.x == min || v0.x == max || v0.y == min || v0.y == max) {
+            delete_if_exists_add_if_not(
+                boundary_nodes, direction, ray->v[0], ray->v[1]
+            );
+        }   
+        if (v1.x == min || v1.x == max || v1.y == min || v1.y == max) {
+            delete_if_exists_add_if_not(
+                boundary_nodes, direction, ray->v[1], ray->v[0]
+            );
+        }
+    }
+    if (boundary_nodes.size() == 0) { return; }
 
+}
+
+VertexNode* clone_if_not_in_map(
+    std::unordered_map<VertexNode*, VertexNode*>& map,
+    VertexNode* node
+) {
+    auto s = map.find(node);
+    if (auto s = map.find(node); s == map.end()) {
+        VertexNode* clone = new VertexNode(node->coord);
+        map.insert({node, clone});
+        return clone;
+    }
+    else {
+        return s->second;
+    }
+}
+
+std::vector<RealCoordinate> Region::get_bounds() {
+    std::vector<RealCoordinate> bounds_vertices;
+    std::unordered_map<VertexNode*, VertexNode*> clone_map;
+    for (BoundaryRay* ray : rays) {
+        if (ray->v[0] == nullptr || ray->v[1] == nullptr) {
+            continue;
+        }
+        VertexNode* v0 = clone_if_not_in_map(clone_map, ray->v[0]);
+        VertexNode* v1 = clone_if_not_in_map(clone_map, ray->v[1]);
+        v0->connected.push_back(v1);
+        v1->connected.push_back(v0);
+    }
+    VertexNode* node = clone_map.begin()->second;
+    VertexNode* end = node;
+    VertexNode* next = nullptr;
+    const RealCoordinate& c1 = node->connected[0]->coord;
+    const RealCoordinate& c2 = node->connected[1]->coord;
+    if (c1.x > c2.x || (c1.x == c2.x && c1.y > c2.y)) {
+        next = node->connected[0];
+    }
+    else {
+        next = node->connected[1];
+    }
+    while (node != end) {
+        bounds_vertices.push_back(node->coord);
+        if (next->connected[0] == node) {
+            node = next;
+            next = next->connected[1];
+        }
+        else {
+            node = next;
+            next = next->connected[0];
+        }
+    }
+    return bounds_vertices;
+}
+
+RegionNode* clone_if_not_in_map(
+    std::unordered_map<Region*, RegionNode*>& map,
+    Region* region
+) {
+    auto s = map.find(region);
+    if (s == map.end()) {
+        RegionNode* node = new RegionNode;
+        node->vertices = region->get_bounds();
+        map.insert({region, node});
+        return node;
+    }
+    else {
+        return s->second;
+    }
+}
+
+void add_adjacency_if_dne(RegionNode* node_a, RegionNode* node_b) {
+    auto adj_list = node_a->adjacent;
+    if (std::find(adj_list.begin(), adj_list.end(), node_b) != adj_list.end()) {
+        node_a->adjacent.push_back(node_b);
+        node_b->adjacent.push_back(node_a);
+    }
+}
+
+std::vector<RegionNode*> FortunesAlgorithm::region_graph_from_regions() {
+    std::vector<RegionNode*> nodes;
+    std::unordered_map<Region*, RegionNode*> region_to_node;
+    for (Region* region : regions) {
+        RegionNode* rn = clone_if_not_in_map(region_to_node, region);
+        for (Region* adj_region : region->adjacent) {
+            RegionNode* arn = clone_if_not_in_map(region_to_node, adj_region);
+            add_adjacency_if_dne(rn, arn);
+        }
+    }
+    return nodes;
+}
+*/
+/*
 std::vector<VertexNode*> FortunesAlgorithm::vertex_graph() {
     std::vector<VertexNode*> graph;
     std::vector<RealCoordinate> x_min_points, x_max_points, y_min_points, y_max_points;
@@ -675,8 +923,8 @@ std::vector<VertexNode*> FortunesAlgorithm::vertex_graph() {
     }
     return graph; 
 }
-
-
+*/
+/*
 std::vector<Node*> FortunesAlgorithm::region_graph() {
     std::vector<Node*> graph;
     graph.reserve(num_seeds);
@@ -708,5 +956,5 @@ std::vector<Node*> FortunesAlgorithm::region_graph() {
     }
     return graph;
 }
-
+*/
 } // namespace Impl

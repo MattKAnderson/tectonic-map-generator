@@ -19,37 +19,20 @@ struct VertexNode {
 };
 
 struct RegionNode {
-    RealCoordinate seed;
     std::vector<RealCoordinate> vertices;
     std::vector<RegionNode*> adjacent;
-    RegionNode(const RealCoordinate& seed): seed(seed) {}
+    RegionNode() {}
     RealCoordinate centroid();
 };
 
-struct Node {
-    RealCoordinate coord;
-    std::vector<Node*> edges;
-    Node(const RealCoordinate& coord): coord(coord) {};
-    bool operator==(const Node& other) const { return coord == other.coord; }
-};
-
-
 namespace std {
-template <>
-struct hash<Node> {
-    size_t operator()(const Node& n) const {
-        return hash<RealCoordinate>()(n.coord);
-    }
-};   
-
 template <>
 struct hash<VertexNode> {
     size_t operator()(const VertexNode& n) const {
         return hash<RealCoordinate>()(n.coord);
     }
 };   
-}
-
+} // namespace std
 
 class VoronoiDiagram {
 public:
@@ -64,14 +47,14 @@ public:
     std::vector<std::vector<int>> get_diagram();
     std::vector<RealCoordinate> get_seeds();
     std::vector<VertexNode*> consume_vertices();
-    std::vector<Node*> consume_region_graph();
+    //std::vector<Node*> consume_region_graph();
 
 private:
     std::mt19937_64 rng;
     std::vector<std::vector<int>> diagram;
     std::vector<RealCoordinate> seeds;
     std::vector<VertexNode*> vertices;
-    std::vector<Node*> regions;
+    //std::vector<Node*> regions;
     int nregions;
 
     void fortunes_algorithm(
@@ -89,11 +72,9 @@ namespace Impl {
 
 class BoundaryRay {
 public:
-    BoundaryRay(const RealCoordinate& r1, const RealCoordinate& r2);
+    BoundaryRay() {};
     void clip_to_bbox(double xmin, double xmax, double ymin, double ymax);
-    RealCoordinate r1;
-    RealCoordinate r2;
-    RealCoordinate* v[2] = {nullptr, nullptr}; // left, right vertices
+    VertexNode* v[2] = {nullptr, nullptr}; // left, right vertices
 private:
     void clip_infinite_ray(double xmin, double xmax, double ymin, double ymax);
     RealCoordinate* clip_infinite_ray(
@@ -105,49 +86,63 @@ private:
     );
 };
 
-class FortunesAlgorithm {
+/*
+class Region {
 public:
-    FortunesAlgorithm() {}
-    void compute(std::vector<RealCoordinate>& seeds, double min, double max);
-    //std::vector<Node*> vertex_graph();
-    std::vector<Node*> region_graph();
-    std::vector<VertexNode*> vertex_graph();
-    //std::vector<RegionNode*> region_graph();
-private:
-    int num_seeds;
-    double min;
-    double max;
-    std::vector<Impl::BoundaryRay*> rays;
-    std::vector<RealCoordinate> order_region_vertices(
-        std::vector<RealCoordinate>& vertex_pairs,
-        const RealCoordinate& focus
-    );
-    void connect_border_vertices(
-        std::vector<RealCoordinate>& vertex_pairs,
-        const RealCoordinate& focus
-    );
+    Region(const RealCoordinate& seed): seed(seed) {}
+    void add_ray(BoundaryRay* ray);
+    void add_adjacent(Region* region);
+    void prune_rays();
+    void draw_rays_on_bounds(double min, double max);
+    std::vector<RealCoordinate> get_bounds();
+    RealCoordinate seed;
+    std::vector<BoundaryRay*> rays;
+    std::vector<Region*> adjacent;
+};
+*/
+struct HalfEdge;
+
+struct Region {
+    RealCoordinate seed;
+    HalfEdge* an_edge = nullptr;
+};
+
+struct HalfEdge {
+    Region* region = nullptr;
+    HalfEdge* prev = nullptr;
+    HalfEdge* next = nullptr;
+    HalfEdge* twin = nullptr;
+    VertexNode* origin = nullptr;
 };
 
 struct Event;
 
 struct Arc {
+    Arc(const RealCoordinate& focus, Region* region): focus(focus), region(region) {};
     RealCoordinate focus;
+    Region* region = nullptr;
     bool red = true;
+    bool active = true;
     Arc* left = nullptr;
     Arc* right = nullptr;
     Arc* parent = nullptr;
     Arc* lower = nullptr;
     Arc* upper = nullptr;
-    bool active = true;
-    Impl::BoundaryRay* lower_ray = nullptr;
-    Impl::BoundaryRay* upper_ray = nullptr;
+    HalfEdge* upper_edge = nullptr;
+    HalfEdge* lower_edge = nullptr;
+    //Impl::BoundaryRay* lower_ray = nullptr;
+    //Impl::BoundaryRay* upper_ray = nullptr;
 };
 
 class BeachLine {
 public:
-    BeachLine(const RealCoordinate& r1): head(new Arc{r1}) {};
+    BeachLine() {}
+    BeachLine(const RealCoordinate& r1, Region* region): head(new Arc(r1, region)) {}; 
+    BeachLine(const BeachLine& other) = delete;
+    BeachLine& operator=(const BeachLine& other);
     ~BeachLine();
     Arc* find_intersected_arc(const RealCoordinate& c);
+    void set_head(const RealCoordinate& focus, Region* region);
     Arc* get_head();
     void insert_arc_above(Arc* arc, Arc* new_arc);
     void insert_arc_below(Arc* arc, Arc* new_arc);
@@ -163,6 +158,41 @@ private:
     void rotate_right(Arc* arc);
     void flip_colors(Arc* arc);
     bool is_red(Arc* arc);
+};
+
+class FortunesAlgorithm {
+public:
+    FortunesAlgorithm() {}
+    void compute(std::vector<RealCoordinate>& seeds, double min, double max);
+    //std::vector<Node*> vertex_graph();
+    //std::vector<Node*> region_graph();
+    std::vector<VertexNode*> consume_vertex_graph();
+    std::vector<RegionNode*> consume_region_graph();
+private:
+    int num_seeds;
+    double min;
+    double max;
+    std::vector<Impl::BoundaryRay*> rays;
+    std::vector<Impl::Region*> regions;
+    std::vector<VertexNode*> vertices;
+    std::priority_queue<Event, std::vector<Event>, std::greater<Event>> event_queue;
+    BeachLine beach_line;
+
+    void site_event(const RealCoordinate& focus);
+    void intersection_event(const Event& event);
+    void add_vertices_for_bounds_corners();
+    void connect_vertices_on_bounds();
+    bool compare_bounds_vertices(VertexNode* va, VertexNode* vb);
+    std::vector<RegionNode*> region_graph_from_regions();
+
+    std::vector<RealCoordinate> order_region_vertices(
+        std::vector<RealCoordinate>& vertex_pairs,
+        const RealCoordinate& focus
+    );
+    void connect_border_vertices(
+        std::vector<RealCoordinate>& vertex_pairs,
+        const RealCoordinate& focus
+    );
 };
 
 struct Event {
@@ -181,10 +211,17 @@ struct Event {
     bool operator> (const Event& other) const;
     bool operator== (const Event& other) const;
 };
-
-inline BoundaryRay::BoundaryRay(
-    const RealCoordinate& r1, const RealCoordinate& r2
-): r1(r1), r2(r2) {}
+/*
+inline Arc::Arc(const RealCoordinate& focus, Region* region):
+    focus(focus), region(region), red(true), active(true),
+    left(nullptr), right(nullptr), parent(nullptr), lower(nullptr),
+    upper(nullptr), upper_edge(nullptr), lower_edge(nullptr) 
+{
+        std::cout << "This constructor was called" << std::endl;
+        if (left != nullptr) {
+            std::cout << "left was not nullptr" << std::endl;
+        }
+}*/
 
 inline BeachLine::~BeachLine() {
     std::vector<Arc*> stack = {head};
@@ -201,6 +238,11 @@ inline BeachLine::~BeachLine() {
     for (Arc* arc : closed_regions) {
         delete arc;
     }
+}
+
+inline BeachLine& BeachLine::operator=(const BeachLine& other) {
+    head = new Arc(other.head->focus, other.head->region);
+    return *this;
 }
 
 inline Arc* BeachLine::get_head() {

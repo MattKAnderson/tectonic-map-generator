@@ -39,11 +39,10 @@ region_connections = json.load(f3)["vector"]
 diagram_seeds = json.load(f2)["vector"]
 
 
-
 plot_line_segments(ax, line_segments, "r")
-#plot_line_segments(ax, region_connections, "b")
+# plot_line_segments(ax, region_connections, "b")
 plot_points(ax, diagram_seeds, "b")
-plot_bounds(ax, xmin, xmax, ymin, ymax)
+#plot_bounds(ax, xmin, xmax, ymin, ymax)
 #plot_points(ax, manual_points, "r")
 #for p in sorted(diagram_seeds, key=lambda x: x[0]):
 #    print(p)

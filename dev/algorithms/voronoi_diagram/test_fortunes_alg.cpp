@@ -14,17 +14,17 @@ std::string to_json<std::pair<RealCoordinate, RealCoordinate>>(
 
 
 std::vector<std::pair<RealCoordinate, RealCoordinate>> graph_to_line_segments(
-    std::vector<Node*> graph
+    std::vector<VertexNode*> graph
 ) {
     std::cout << "Graph size: " << graph.size() << std::endl;
     std::vector<std::pair<RealCoordinate, RealCoordinate>> line_segments;
-    std::unordered_set<Node*> visited;
-    std::vector<Node*> stack;
+    std::unordered_set<VertexNode*> visited;
+    std::vector<VertexNode*> stack;
     stack.push_back(graph[0]);
     while (stack.size() != 0) {
-        Node* node = stack.back(); stack.pop_back();
+        VertexNode* node = stack.back(); stack.pop_back();
         visited.insert(node);
-        for (Node* edge : node->edges) {
+        for (VertexNode* edge : node->connected) {
             if (visited.find(edge) != visited.end()) {
                 continue;
             }
@@ -35,16 +35,22 @@ std::vector<std::pair<RealCoordinate, RealCoordinate>> graph_to_line_segments(
             stack.push_back(edge);
         }
     }
+    std::cout << "Number of line segments: " << line_segments.size() << std::endl;
     return line_segments;
 }
 
+/*
+ *  Mid refactor to using the DCEL representation of the vertex graph and 
+ *  regions. Code is running, but the DCEL graph isn't getting connected 
+ *  correctly.
+ */
 
 int main() {
 
     int seed = 888468;
     int xsize = 4096;
     int ysize = xsize;
-    int nseeds = 100000;
+    int nseeds = 100;
 
     VoronoiDiagram voronoi_diagram(seed);
     auto t1 = std::chrono::high_resolution_clock::now();
@@ -55,18 +61,18 @@ int main() {
     std::cout << "Took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count() / 1000000.0 << " ms\n";
 
     std::vector<RealCoordinate> seeds = voronoi_diagram.get_seeds();
-    std::vector<Node*> vgraph = voronoi_diagram.consume_vertices();
-    std::vector<Node*> rgraph = voronoi_diagram.consume_region_graph();
+    std::vector<VertexNode*> vgraph = voronoi_diagram.consume_vertices();
+    //std::vector<Node*> rgraph = voronoi_diagram.consume_region_graph();
     std::cout << "Finished getting vertices and region graphs" << std::endl;
     typedef std::vector<std::pair<RealCoordinate, RealCoordinate>> ls_vector;
     ls_vector vertex_line_segments = graph_to_line_segments(vgraph);
-    ls_vector region_adjacency_segments = graph_to_line_segments(rgraph);
+    //ls_vector region_adjacency_segments = graph_to_line_segments(rgraph);
     
     std::cout << "Writing results" << std::endl;
     vector_output("vertex_line_segments.json", vertex_line_segments);
-    vector_output(
-        "region_adjacency_line_segments.json", region_adjacency_segments
-    );
+    //vector_output(
+    //    "region_adjacency_line_segments.json", region_adjacency_segments
+    //);
     vector_output("diagram_seeds.json", seeds);
     std::cout << "Done" << std::endl;
 }

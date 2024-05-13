@@ -48,14 +48,14 @@ public:
     std::vector<std::vector<int>> get_diagram();
     std::vector<RealCoordinate> get_seeds();
     std::vector<VertexNode*> consume_vertices();
-    //std::vector<Node*> consume_region_graph();
+    std::vector<RegionNode*> consume_region_graph();
 
 private:
     std::mt19937_64 rng;
     std::vector<std::vector<int>> diagram;
     std::vector<RealCoordinate> seeds;
     std::vector<VertexNode*> vertices;
-    //std::vector<Node*> regions;
+    std::vector<RegionNode*> regions;
     int nregions;
 
     void fortunes_algorithm(

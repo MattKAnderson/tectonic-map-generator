@@ -53,7 +53,7 @@ void VoronoiDiagram::generate(int xsize, int ysize, int nseeds) {
     Impl::FortunesAlgorithm generator;
     generator.compute(seeds, 0.0, xsize);
     vertices = generator.consume_vertex_graph();
-    //regions = generator.region_graph();
+    regions = generator.consume_region_graph();
 }
 
 void VoronoiDiagram::generate_from_seeds(
@@ -66,7 +66,7 @@ void VoronoiDiagram::generate_from_seeds(
     generator.compute(seeds, 0.0, xsize);
     //std::cout << "about to produce vertex graph" << std::endl;
     vertices = generator.consume_vertex_graph();
-    //regions = generator.region_graph();
+    regions = generator.consume_region_graph();
     
 }
 
@@ -111,11 +111,11 @@ std::vector<RealCoordinate> VoronoiDiagram::get_seeds() {
 std::vector<VertexNode*> VoronoiDiagram::consume_vertices() {
     return std::move(vertices);
 }
-/*
-std::vector<Node*> VoronoiDiagram::consume_region_graph() {
+
+std::vector<RegionNode*> VoronoiDiagram::consume_region_graph() {
     return std::move(regions);
 }
-*/
+
 void VoronoiDiagram::grid_algorithm(
     std::vector<RealCoordinate>& seeds, int xsize, int ysize
 ) {
@@ -467,7 +467,9 @@ void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
     split_arc->lower_edge = arc->upper_edge;
     arc->upper_edge->twin = new_arc->upper_edge;
     new_arc->lower_edge->twin = arc->upper_edge;
-    
+    arc->region->an_edge = arc->upper_edge;
+    new_arc->region->an_edge = new_arc->upper_edge;
+
     Arc* upper_upper = split_arc->upper;
     Arc* lower_lower = arc->lower;
     if (upper_upper) {
@@ -614,26 +616,17 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
         else if (event.associated_arc->active) { intersection_event(event); }
     }
     bound_DCEL();
-    //for (BoundaryRay* ray : rays) {
-    //    ray->clip_to_bbox(min, max, min, max);
-    //}
-    //add_vertices_for_bounds_corners(); 
-    //connect_vertices_on_bounds();
-    //for (Region* region : regions) {
-    //    region->prune_rays();
-    //    region->draw_rays_on_bounds(min, max);
-    //}
 }
 
 RealCoordinate clip_infinite_edge(
     HalfEdge* edge, double xmax, double xmin, double ymax, double ymin
 ) {
-    if (edge->twin->origin == nullptr) {
-        std::cout << "Edge was nullptr!" << std::endl;
-        if (edge->origin == nullptr) {
-            std::cout << "Both were nullptr!" << std::endl;
-        }
-    }
+    //if (edge->twin->origin == nullptr) {
+    //    std::cout << "Edge was nullptr!" << std::endl;
+    //    if (edge->origin == nullptr) {
+    //        std::cout << "Both were nullptr!" << std::endl;
+    //    }
+    //}
     const auto& [x0, y0] = edge->twin->origin->coord;
     const auto& [rx1, ry1] = edge->region->seed;
     const auto& [rx2, ry2] = edge->twin->region->seed;
@@ -666,7 +659,7 @@ RealCoordinate clip_infinite_edge(
     }
     return {x_int, y_int};
 }
-
+/*
 struct VertexAndEdge {
     VertexNode* vertex;
     HalfEdge* edge;
@@ -687,13 +680,7 @@ bool cmp_y_greater(VertexAndEdge* a, VertexAndEdge* b) {
 bool cmp_y_less(VertexAndEdge* a, VertexAndEdge* b) {
     return a->vertex->coord.y < b->vertex->coord.y;
 }
-
-bool is_between_on_bbox_exterior(
-    const RealCoordinate& x, const RealCoordinate& a, const RealCoordinate& b
-) {
-
-}
-
+*/
 bool is_before_on_bbox_exterior(
     const RealCoordinate& a, const RealCoordinate& b, double xmax, double xmin,
     double ymax, double ymin
@@ -760,7 +747,11 @@ void FortunesAlgorithm::bound_DCEL() {
     int corner_to_place = 0;
     for (auto it = exterior.begin(); it != exterior.end(); ++it) {
         for (int i = corner_to_place; i < 4; i++) {
-            if (is_before_on_bbox_exterior(corners[i], (*it)->coord, xmax, xmin, ymax, ymin)) {
+            if (corners[i] == (*it)->coord) {
+                ++corner_to_place;
+                break;
+            }
+            else if (is_before_on_bbox_exterior(corners[i], (*it)->coord, xmax, xmin, ymax, ymin)) {
                 vertices.push_back(new VertexNode(corners[i]));
                 exterior.insert(it, vertices.back());
                 HalfEdge* dummy_edge = new HalfEdge;
@@ -776,219 +767,73 @@ void FortunesAlgorithm::bound_DCEL() {
 
     HalfEdge* prev_edge = nullptr;
     HalfEdge* first_corner_edge = nullptr;
+    HalfEdge* edge_in = nullptr;
     for (VertexNode* vertex : exterior) {
-        if (is_corner_node(vertex, xmax, xmin, ymax, ymin)) {
+        edge_in = node_to_edge_in[vertex];
+        if (edge_in->origin == nullptr) {
             HalfEdge* new_edge = new HalfEdge{
-                node_to_edge_in[vertex]->region, prev_edge, nullptr, nullptr, vertex
+                edge_in->region, prev_edge, nullptr, nullptr, vertex
             };
+            HalfEdge* twin_edge = new HalfEdge{
+                nullptr, nullptr, nullptr, new_edge, nullptr
+            };
+            new_edge->twin = twin_edge;
             if (first_corner_edge == nullptr) { first_corner_edge = new_edge; }
-            if (prev_edge) { prev_edge->next = new_edge; }
+            if (prev_edge) { 
+                prev_edge->next = new_edge;
+                prev_edge->twin->origin = vertex;
+            }
             prev_edge = new_edge;
             half_edges.push_back(new_edge);
+            half_edges.push_back(twin_edge);
         }
         else {
-            HalfEdge* edge_in = node_to_edge_in[vertex];
-            if (prev_edge) { 
-                if (edge_in->twin == nullptr) {
-                    std::cout << "The edge in twin was nullptr" << std::endl;
-                }
-                prev_edge->next = edge_in->twin; 
-                edge_in->twin->prev = prev_edge;    
-            }
-            prev_edge = new HalfEdge{
+            HalfEdge* new_edge = new HalfEdge{
                 edge_in->region, edge_in, nullptr, nullptr, vertex
             };
+            HalfEdge* twin_edge = new HalfEdge{
+                nullptr, nullptr, nullptr, new_edge, nullptr
+            };
+            new_edge->twin = twin_edge;
+            if (prev_edge) { 
+                prev_edge->next = edge_in->twin; 
+                prev_edge->twin->origin = vertex;
+                edge_in->twin->prev = prev_edge;    
+            }
+            prev_edge = new_edge;
             edge_in->next = prev_edge;
             half_edges.push_back(prev_edge);
+            half_edges.push_back(twin_edge);
         }
     }
-    if (is_corner_node(*exterior.begin(), xmax, xmin, ymax, ymin)) {
+    edge_in = node_to_edge_in[*exterior.begin()];
+    if (edge_in->origin == nullptr) {
         first_corner_edge->prev = prev_edge;
         prev_edge->next = first_corner_edge;
+        prev_edge->twin->origin = *exterior.begin();
     }
     else {
-        HalfEdge* next = node_to_edge_in[*exterior.begin()]->twin;
+        HalfEdge* next = edge_in->twin;
         prev_edge->next = next;
+        prev_edge->twin->origin = *exterior.begin();
         next->prev = prev_edge;
     }
-
-
-    /*
-    //std::vector<VertexNode*> exterior;
-    std::vector<HalfEdge*> associated_edge_in;
-    //std::unordered_map<VertexNode*, HalfEdge*> origin_to_edge;
-    Arc* lower = beach_line.get_head();
-    while (lower->right != nullptr) { lower = lower->left; }
-    //Arc* initial = upper;
-    Arc* upper = lower->lower;
-    bool placed[4] = {false, false, false, false};
-    while (upper  != nullptr) {
-        RealCoordinate v = clip_infinite_edge(upper->lower_edge, xmax, xmin, ymax, ymin);
-        if (!placed[0] && v.x != xmin) {
-            placed[0] = true;
-            vertices.push_back(new VertexNode({xmin, ymin}));
-            exterior.push_back(vertices.back());
-            associated_edge_in.push_back(nullptr);
-        } 
-        if (placed[0] && !placed[1] && v.y != ymin) {
-            placed[1] = true;
-            vertices.push_back(new VertexNode({xmin, ymin}));
-            exterior.push_back(vertices.back());
-            associated_edge_in.push_back(nullptr);
-
-        }
-        if (placed[1] && !placed[2] && v.x != xmax) {
-            vertices.push_back(new VertexNode({xmin, ymin}));
-            exterior.push_back(vertices.back());
-            associated_edge_in.push_back(nullptr);
-
-        }
-        if (placed[2] && !placed[3] && v.x == xmin) {
-            vertices.push_back(new VertexNode({xmin, ymin}));
-            exterior.push_back(vertices.back());
-            associated_edge_in.push_back(nullptr);
-
-        }
-        vertices.push_back(new VertexNode(v));
-        exterior.push_back(vertices.back());
-        associated_edge_in.push_back(upper->lower_edge);    
-    }
-    */
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    // initial and lower (do we need wrap?)
-    /*
-    // second pass over exterior
-    for (int i = 0; i < exterior.size() - 1; i++) {
-        auto& [x1, y1] = exterior[i]->coord;
-        auto& [x2, y2] = exterior[i + 1]->coord;
-
-        if ((x1 == x2 && x1 == xmin || x1 == xmax) || (y1 == y2 && y1 == ymin || y1 == ymax)) {
-            HalfEdge* e1 = origin_to_edge[exterior[i]];
-            HalfEdge* e2 = origin_to_edge[exterior[i + 1]];
-
-        } 
-        else {
-
-        }
-
-    }
-    */
-
-/*
-    for (Region* region : regions) {
-        HalfEdge* start = region->an_edge;
-        HalfEdge* edge = start;
-        while (edge->next != nullptr && edge->next != start) { edge = edge->next; }
-        if (edge->next != nullptr) { continue; }
-        HalfEdge* edge_2 = start;
-        while (edge_2->prev != nullptr) { edge_2 = edge_2->prev; }
-        
-    }
-*/
-
-
-    /*
-    std::vector<VertexAndEdge> xmin_vertices, xmax_vertices, ymin_vertices, ymax_vertices;
-    for (HalfEdge* edge : half_edges) {
-        if (edge->origin == nullptr) { 
-            RealCoordinate v = clip_infinite_edge(edge, xmax, xmin, ymax, ymin);
-            vertices.push_back(new VertexNode(v));
-            edge->origin = vertices.back();
-        }
-        if (edge->origin->coord.x == xmin) {
-            xmin_vertices.emplace_back(edge->origin, edge);
-        }
-        else if (edge->origin->coord.y == ymax) {
-            ymax_vertices.emplace_back(edge->origin, edge);
-        }
-        else if (edge->origin->coord.x == xmax) {
-            xmax_vertices.emplace_back(edge->origin, edge);
-        }
-        else if (edge->origin->coord.y == ymin) {
-            ymin_vertices.emplace_back(edge->origin, edge);
-        }
-
-    }
-    std::sort(xmin_vertices.begin(), xmin_vertices.end(), cmp_y_less);
-    std::sort(ymax_vertices.begin(), ymax_vertices.end(), cmp_x_less);
-    std::sort(xmax_vertices.begin(), xmax_vertices.end(), cmp_y_greater);
-    std::sort(ymin_vertices.begin(), ymin_vertices.end(), cmp_x_greater);
-
-    for (int i = 0; i < xmin_vertices.size() - 1; i++) {
-        half_edges.push_back(new HalfEdge);
-        half_edges.back()->region = xmin_vertices[i + 1]
-    }
-
-
-    VertexNode* xmin_ymin;
-    VertexNode* xmin_ymax;
-    VertexNode* xmax_ymax;
-    VertexNode* xmax_ymin;
-    if (xmin_vertices[0].vertex->coord == RealCoordinate(xmin, ymin)) {
-        xmin_ymin = xmin_vertices[0].vertex;
-    }
-    else {
-        xmin_ymin = new VertexNode({xmin, ymin});
-        vertices.push_back(xmin_ymin);
-    }
-    if (ymax_vertices[0].vertex->coord == RealCoordinate(xmin, ymax)) {
-        xmin_ymax = ymax_vertices[0].vertex;
-    }
-    else {
-        xmin_ymax = new VertexNode({xmin, ymax});
-        vertices.push_back(xmin_ymax);
-    }
-    if (xmax_vertices[0].vertex->coord == RealCoordinate(xmax, ymax)) {
-        xmax_ymax = xmax_vertices[0].vertex;
-    }
-    else {
-        xmax_ymax = new VertexNode({xmax, ymax});
-        vertices.push_back(xmax_ymax);
-    }
-    if (ymin_vertices[0].vertex->coord == RealCoordinate(xmax, ymin)) {
-        xmax_ymin = ymin_vertices[0].vertex;
-    }
-    else {
-        xmax_ymin = new VertexNode({xmax, ymin});
-        vertices.push_back(xmax_ymin);
-    }
-    */
 }
 
 std::vector<VertexNode*> FortunesAlgorithm::consume_vertex_graph() {
-    std::cout << "Consuming vertex graph" << std::endl;
+    //std::cout << "Consuming vertex graph" << std::endl;
     //std::cout << "Size of regions: " << regions.size() << std::endl;
     for (HalfEdge* half_edge : half_edges) {
-        if (half_edge->next == nullptr) {
-            std::cout << "Half edge next was nullptr" << std::endl;
-            auto c = half_edge->origin->coord;
-            std::cout << "(" << c.x << ", " << c.y << ")\n";
-            continue;
-        }
-        if (half_edge->origin == nullptr || half_edge->next->origin == nullptr) {
-            continue;
-        }
-        half_edge->origin->connected.push_back(half_edge->next->origin);
+        //if (half_edge->origin == nullptr || half_edge->next->origin == nullptr) {
+        //    continue;
+        //}
+        half_edge->origin->connected.push_back(half_edge->twin->origin);
     }
     return std::move(vertices);
 }
 
 std::vector<RegionNode*> FortunesAlgorithm::consume_region_graph() {
-    return region_graph_from_regions();
+    return std::move(region_graph_from_regions());
 }
 
 std::vector<RegionNode*> FortunesAlgorithm::region_graph_from_regions() {
@@ -996,15 +841,21 @@ std::vector<RegionNode*> FortunesAlgorithm::region_graph_from_regions() {
     std::unordered_map<Region*, RegionNode*> node_map;
     nodes.reserve(regions.size());
     for (Region* region : regions) {
-        nodes.emplace_back();
+        nodes.push_back(new RegionNode);
         node_map.insert({region, nodes.back()});
     }
+    std::cout << "Finished iterating over regions" << std::endl;
     for (Region* region : regions) {
         RegionNode* this_region = node_map[region];
         HalfEdge* edge_ptr = region->an_edge;
+        if (edge_ptr == nullptr) {
+            std::cout << "edge_ptr was nullptr" << std::endl;
+        }
         while (edge_ptr->next != region->an_edge) {
             this_region->vertices.push_back(edge_ptr->origin->coord);
-            this_region->adjacent.push_back(node_map[edge_ptr->twin->region]);
+            if (edge_ptr->twin->region != nullptr) {
+                this_region->adjacent.push_back(node_map[edge_ptr->twin->region]);
+            }
             edge_ptr = edge_ptr->next;
         }
         this_region->vertices.push_back(edge_ptr->origin->coord);

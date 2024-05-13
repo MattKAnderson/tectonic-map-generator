@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <iostream>
 #include <iomanip>
+#include <list>
 #include <memory>
 #include <queue>
 #include <vector>
@@ -144,6 +145,7 @@ public:
     Arc* find_intersected_arc(const RealCoordinate& c);
     void set_head(const RealCoordinate& focus, Region* region);
     Arc* get_head();
+    Arc* get_lowest();
     void insert_arc_above(Arc* arc, Arc* new_arc);
     void insert_arc_below(Arc* arc, Arc* new_arc);
     void remove_arc(Arc* arc);
@@ -175,11 +177,14 @@ private:
     std::vector<Impl::BoundaryRay*> rays;
     std::vector<Impl::Region*> regions;
     std::vector<VertexNode*> vertices;
+    std::vector<HalfEdge*> half_edges;
     std::priority_queue<Event, std::vector<Event>, std::greater<Event>> event_queue;
     BeachLine beach_line;
 
     void site_event(const RealCoordinate& focus);
     void intersection_event(const Event& event);
+    void bound_DCEL();
+    void flush_beachline();
     void add_vertices_for_bounds_corners();
     void connect_vertices_on_bounds();
     bool compare_bounds_vertices(VertexNode* va, VertexNode* vb);

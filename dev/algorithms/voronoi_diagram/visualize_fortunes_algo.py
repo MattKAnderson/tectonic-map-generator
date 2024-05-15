@@ -8,7 +8,7 @@ xmax = 4096.0
 ymax = 4096.0
 
 
-def plot_line_segments(ax, lines, color):
+def plot_line_segments(ax, lines, color=None):
     for line in lines:
         xs = [p[0] for p in line]
         ys = [p[1] for p in line]
@@ -39,7 +39,7 @@ region_connections = json.load(f3)["vector"]
 diagram_seeds = json.load(f2)["vector"]
 
 
-plot_line_segments(ax, line_segments, "r")
+plot_line_segments(ax, line_segments)
 # plot_line_segments(ax, region_connections, "b")
 plot_points(ax, diagram_seeds, "b")
 #plot_bounds(ax, xmin, xmax, ymin, ymax)

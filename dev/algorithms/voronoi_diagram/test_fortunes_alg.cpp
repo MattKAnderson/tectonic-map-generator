@@ -39,18 +39,12 @@ std::vector<std::pair<RealCoordinate, RealCoordinate>> graph_to_line_segments(
     return line_segments;
 }
 
-/*
- *  Mid refactor to using the DCEL representation of the vertex graph and 
- *  regions. Code is running, but the DCEL graph isn't getting connected 
- *  correctly.
- */
-
 int main() {
 
-    int seed = 888468;
+    int seed = 5343250;
     int xsize = 4096;
     int ysize = xsize;
-    int nseeds = 100;
+    int nseeds = 200000;
 
     VoronoiDiagram voronoi_diagram(seed);
     auto t1 = std::chrono::high_resolution_clock::now();
@@ -62,7 +56,7 @@ int main() {
 
     std::vector<RealCoordinate> seeds = voronoi_diagram.get_seeds();
     std::vector<VertexNode*> vgraph = voronoi_diagram.consume_vertices();
-    //std::vector<Node*> rgraph = voronoi_diagram.consume_region_graph();
+    std::vector<RegionNode*> rgraph = voronoi_diagram.consume_region_graph();
     std::cout << "Finished getting vertices and region graphs" << std::endl;
     typedef std::vector<std::pair<RealCoordinate, RealCoordinate>> ls_vector;
     ls_vector vertex_line_segments = graph_to_line_segments(vgraph);

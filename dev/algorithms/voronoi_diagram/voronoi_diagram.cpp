@@ -313,39 +313,58 @@ void BeachLine::insert_arc_above(Arc* arc, Arc* new_arc) {
     new_arc->upper = arc->upper;
     new_arc->lower = arc;
     arc->upper = new_arc;
-    // TODO: insert_balance(new_arc);
+    //insert_balance(new_arc);
 }
 
 void BeachLine::insert_balance(Arc* arc) {
-    // TODO 
+    arc->red = true;
+    arc = arc->parent;
+    Arc* parent = arc->parent;
+    while (parent != nullptr) {
+        if (parent->left == arc) { parent->left = insert_local_balance(arc); }
+        else { parent->right = insert_local_balance(arc); }
+        arc = parent;
+        parent = parent->parent;
+    }
+    arc = insert_local_balance(arc);
+    arc->red = false;
+    head = arc;
+}
+
+Arc* BeachLine::insert_local_balance(Arc* arc) {
+    if (is_red(arc->right) && !is_red(arc->right)) { arc = rotate_left(arc); }
+    if (is_red(arc->left) && is_red(arc->left->left)) { arc = rotate_right(arc); }
+    if (is_red(arc->left) && is_red(arc->right)) { flip_colors(arc); }
+    return arc;
 }
 
 void BeachLine::delete_balance(Arc* arc) {
     // TODO
 }
 
-void BeachLine::rotate_left(Arc* arc) {
+Arc* BeachLine::rotate_left(Arc* arc) {
     Arc* rchild = arc->right;
     rchild->parent = arc->parent;
-    if (arc->parent->left == arc) { arc->parent->left = rchild; }
-    else { arc->parent->right = rchild; }
     arc->parent = rchild;
     arc->right = rchild->left;
+    if (arc->right) { arc->right->parent = arc; }
+    arc->right->parent = arc;
     rchild->left = arc;
     rchild->red = arc->red;
     arc->red = true;
+    return rchild;
 }
 
-void BeachLine::rotate_right(Arc* arc) {
+Arc* BeachLine::rotate_right(Arc* arc) {
     Arc* lchild = arc->left;
     lchild->parent = arc->parent;
-    if (arc->parent->left == arc) { arc->parent->left = lchild; }
-    else { arc->parent->right = lchild; }
     arc->parent = lchild;
     arc->left = lchild->right;
+    if (arc->left) { arc->left->parent = arc; }
     lchild->right = arc;
     lchild->red = arc->red;
     arc->red = true;
+    return lchild;
 }
 
 void BeachLine::flip_colors(Arc* arc) {
@@ -476,6 +495,7 @@ void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
         RealCoordinate intersect = triangle_circumcenter(
             focus, split_arc->focus, upper_upper->focus
         );
+        ++op_counter;
         if (focus.y < intersect.y) {
            event_queue.push(new_intersection_event(intersect, split_arc)); 
         }
@@ -484,6 +504,7 @@ void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
         RealCoordinate intersect = triangle_circumcenter(
             focus, arc->focus, lower_lower->focus
         );
+        op_counter++;
         if (focus.y > intersect.y) {
             event_queue.push(new_intersection_event(intersect, arc));
         }
@@ -549,6 +570,7 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
     if (uu_arc && fl != uu_arc->focus) {
         const RealCoordinate& fuu = uu_arc->focus;
         RealCoordinate new_intersect = triangle_circumcenter(fl, fu, fuu);
+        ++op_counter;
         double known_at_x = new_intersect.x + euclidean_distance(new_intersect, fu);
         if (new_intersect != intersect 
             && event.coord.x < known_at_x 
@@ -564,6 +586,7 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
     if (ll_arc && u_arc->focus != ll_arc->focus) {
         const RealCoordinate& fll = ll_arc->focus;
         RealCoordinate new_intersect = triangle_circumcenter(fu, fl, fll);
+        ++op_counter;
         double known_at_x = new_intersect.x + euclidean_distance(new_intersect, fl);
         if (new_intersect != intersect
             && event.coord.x < known_at_x
@@ -616,6 +639,7 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
         else if (event.associated_arc->active) { intersection_event(event); }
     }
     bound_DCEL();
+    std::cout << "Number of triangle circumcenter ops: " << op_counter << std::endl;
 }
 
 RealCoordinate clip_infinite_edge(
@@ -820,6 +844,26 @@ void FortunesAlgorithm::bound_DCEL() {
     }
 }
 
+bool outside_bbox(const RealCoordinate& c, double min, double max) {
+    return c.x < min || c.x > max || c.y < min || c.y > max;
+}
+
+bool inside_bbox(const RealCoordinate& c, double min, double max) {
+    return c.x >= min && c.x <= max && c.y >= min && c.y <= max;
+}
+
+
+
+void FortunesAlgorithm::clip_to_bbox(double min, double max) {
+
+    for (auto* edge : half_edges) {
+        const RealCoordinate& v = edge->origin->coord;
+        if (inside_bbox(v, min, max)) { continue; }
+
+    }
+
+}
+
 std::vector<VertexNode*> FortunesAlgorithm::consume_vertex_graph() {
     //std::cout << "Consuming vertex graph" << std::endl;
     //std::cout << "Size of regions: " << regions.size() << std::endl;
@@ -863,300 +907,4 @@ std::vector<RegionNode*> FortunesAlgorithm::region_graph_from_regions() {
     return std::move(nodes);
 }
 
-/*
-void FortunesAlgorithm::add_vertices_for_bounds_corners() {
-    // need to iterate through to ensure that a duplicate is not being added here
-    // this would be more efficient to do from the connect vertices on bounds method
-    vertices.push_back(new VertexNode({min, min}));
-    vertices.push_back(new VertexNode({min, max}));
-    vertices.push_back(new VertexNode({max, max}));
-    vertices.push_back(new VertexNode({max, min}));
-}
-
-bool FortunesAlgorithm::compare_bounds_vertices(
-    VertexNode* va, VertexNode* vb
-) {
-    const RealCoordinate& a = va->coord;
-    const RealCoordinate& b = vb->coord;
-    if (a.x == min) { return (b.x != min) || (a.y < b.y); }
-    else if (a.y == max) { return (b.x != min) || (b.y == max && b.x > a.x); } 
-    else if (a.x == max) { return (b.y == min && b.x != min) || (b.x == max && a.y > b.y); }
-    else { return b.y == min && b.x < a.x && b.x != min; }
-}
-
-void FortunesAlgorithm::connect_vertices_on_bounds() {
-    std::vector<VertexNode*> bounds_vertices;
-    for (VertexNode* vertex : vertices) {
-        const RealCoordinate& c = vertex->coord;
-        if (c.x == min || c.x == max || c.y == min || c.y == max) {
-            bounds_vertices.push_back(vertex);
-        }
-    }
-    std::sort(bounds_vertices.begin(), bounds_vertices.end(), compare_bounds_vertices);
-    for (int i = 0; i < bounds_vertices.size() - 1; i++) {
-        bounds_vertices[i]->connected.push_back(bounds_vertices[i + 1]);
-        bounds_vertices[i + 1]->connected.push_back(bounds_vertices[i]);
-    }
-    bounds_vertices[0]->connected.push_back(bounds_vertices.back());
-    bounds_vertices.back()->connected.push_back(bounds_vertices[0]);
-}
-*/
-/*
-void Region::add_ray(BoundaryRay* ray) {
-    rays.push_back(ray);
-}
-
-void Region::add_adjacent(Region* region) {
-    adjacent.push_back(region);
-}
-
-void Region::prune_rays() {
-    std::vector<BoundaryRay*> pruned_rays;
-    for (BoundaryRay* ray : rays) {
-        if (ray->v[0] != nullptr && ray->v[1] != nullptr) {
-            pruned_rays.push_back(ray);
-        }
-    }
-    rays = std::move(pruned_rays);
-}
-
-void delete_if_exists_add_if_not(
-    std::vector<VertexNode*>& nodes,
-    std::vector<RealCoordinate>& direction,
-    VertexNode* node,
-    VertexNode* prev
-) {
-    if (auto s = std::find(nodes.begin(), nodes.end(), node); s == nodes.end()) {
-        nodes.push_back(node);
-        direction.emplace_back(
-            node->coord.x - prev->coord.x, node->coord.y - prev->coord.y
-        );
-    }
-    else {
-        int index = std::distance(s, nodes.begin());
-        nodes[index] = nodes.back();
-        nodes.pop_back();
-        direction[index] = direction.back();
-        direction.pop_back();
-    }
-}
-
-void Region::draw_rays_on_bounds(double min, double max) {
-    std::vector<VertexNode*> boundary_nodes;
-    std::vector<RealCoordinate> direction;
-    for (BoundaryRay* ray : rays) {
-        const RealCoordinate& v0 = ray->v[0]->coord;
-        const RealCoordinate& v1 = ray->v[1]->coord;
-        if (v0.x == min || v0.x == max || v0.y == min || v0.y == max) {
-            delete_if_exists_add_if_not(
-                boundary_nodes, direction, ray->v[0], ray->v[1]
-            );
-        }   
-        if (v1.x == min || v1.x == max || v1.y == min || v1.y == max) {
-            delete_if_exists_add_if_not(
-                boundary_nodes, direction, ray->v[1], ray->v[0]
-            );
-        }
-    }
-    if (boundary_nodes.size() == 0) { return; }
-
-}
-
-VertexNode* clone_if_not_in_map(
-    std::unordered_map<VertexNode*, VertexNode*>& map,
-    VertexNode* node
-) {
-    auto s = map.find(node);
-    if (auto s = map.find(node); s == map.end()) {
-        VertexNode* clone = new VertexNode(node->coord);
-        map.insert({node, clone});
-        return clone;
-    }
-    else {
-        return s->second;
-    }
-}
-
-std::vector<RealCoordinate> Region::get_bounds() {
-    std::vector<RealCoordinate> bounds_vertices;
-    std::unordered_map<VertexNode*, VertexNode*> clone_map;
-    for (BoundaryRay* ray : rays) {
-        if (ray->v[0] == nullptr || ray->v[1] == nullptr) {
-            continue;
-        }
-        VertexNode* v0 = clone_if_not_in_map(clone_map, ray->v[0]);
-        VertexNode* v1 = clone_if_not_in_map(clone_map, ray->v[1]);
-        v0->connected.push_back(v1);
-        v1->connected.push_back(v0);
-    }
-    VertexNode* node = clone_map.begin()->second;
-    VertexNode* end = node;
-    VertexNode* next = nullptr;
-    const RealCoordinate& c1 = node->connected[0]->coord;
-    const RealCoordinate& c2 = node->connected[1]->coord;
-    if (c1.x > c2.x || (c1.x == c2.x && c1.y > c2.y)) {
-        next = node->connected[0];
-    }
-    else {
-        next = node->connected[1];
-    }
-    while (node != end) {
-        bounds_vertices.push_back(node->coord);
-        if (next->connected[0] == node) {
-            node = next;
-            next = next->connected[1];
-        }
-        else {
-            node = next;
-            next = next->connected[0];
-        }
-    }
-    return bounds_vertices;
-}
-
-RegionNode* clone_if_not_in_map(
-    std::unordered_map<Region*, RegionNode*>& map,
-    Region* region
-) {
-    auto s = map.find(region);
-    if (s == map.end()) {
-        RegionNode* node = new RegionNode;
-        node->vertices = region->get_bounds();
-        map.insert({region, node});
-        return node;
-    }
-    else {
-        return s->second;
-    }
-}
-
-void add_adjacency_if_dne(RegionNode* node_a, RegionNode* node_b) {
-    auto adj_list = node_a->adjacent;
-    if (std::find(adj_list.begin(), adj_list.end(), node_b) != adj_list.end()) {
-        node_a->adjacent.push_back(node_b);
-        node_b->adjacent.push_back(node_a);
-    }
-}
-
-std::vector<RegionNode*> FortunesAlgorithm::region_graph_from_regions() {
-    std::vector<RegionNode*> nodes;
-    std::unordered_map<Region*, RegionNode*> region_to_node;
-    for (Region* region : regions) {
-        RegionNode* rn = clone_if_not_in_map(region_to_node, region);
-        for (Region* adj_region : region->adjacent) {
-            RegionNode* arn = clone_if_not_in_map(region_to_node, adj_region);
-            add_adjacency_if_dne(rn, arn);
-        }
-    }
-    return nodes;
-}
-*/
-/*
-std::vector<VertexNode*> FortunesAlgorithm::vertex_graph() {
-    std::vector<VertexNode*> graph;
-    std::vector<RealCoordinate> x_min_points, x_max_points, y_min_points, y_max_points;
-    std::unordered_map<RealCoordinate, VertexNode*> vertex_map;
-    for (BoundaryRay* ray : rays) {
-        if (ray->v[0] == nullptr || ray->v[1] == nullptr) {
-            continue;
-        }
-        for (int i = 0; i < 2; i++) {
-            if (ray->v[i]->x == min) { x_min_points.push_back(*ray->v[i]); }
-            else if (ray->v[i]->x == max) { x_max_points.push_back(*ray->v[i]); }
-            if (ray->v[i]->y == min) { y_min_points.push_back(*ray->v[i]); }
-            else if (ray->v[i]->y == max) { y_max_points.push_back(*ray->v[i]); }
-        }
-        VertexNode* vna = nullptr;
-        VertexNode* vnb = nullptr;
-        const RealCoordinate& va = *ray->v[0];
-        const RealCoordinate& vb = *ray->v[1]; 
-        if (auto s = vertex_map.find(va); s == vertex_map.end()) {
-            vna = new VertexNode(va);
-            graph.push_back(vna);
-            vertex_map.emplace(va, graph.back());
-        }
-        else {
-            vna = s->second;
-        }
-        if (auto s = vertex_map.find(vb); s == vertex_map.end()) {
-            graph.push_back(new VertexNode(vb));
-            vertex_map.emplace(vb, graph.back());
-            vnb = graph.back();
-        }
-        else {
-            vnb = s->second;
-        }
-        vna->connected.push_back(vnb);
-        vnb->connected.push_back(vna);
-    }
-    // need to handle cases where a vertex does exist at one of these corners 
-    // this is rare but possible
-    graph.push_back(new VertexNode({min, min}));
-    vertex_map.emplace(RealCoordinate{min, min}, graph.back());
-    graph.push_back(new VertexNode({min, max}));
-    vertex_map.emplace(RealCoordinate{min, max}, graph.back());
-    graph.push_back(new VertexNode({max, min}));
-    vertex_map.emplace(RealCoordinate{max, min}, graph.back());
-    graph.push_back(new VertexNode({max, max}));
-    vertex_map.emplace(RealCoordinate{max, max}, graph.back());
-    std::sort(x_min_points.begin(), x_min_points.end(), compare_y_lower);
-    std::sort(x_max_points.begin(), x_max_points.end(), compare_y_greater);
-    std::sort(y_min_points.begin(), y_min_points.end(), compare_x_greater);
-    std::sort(y_max_points.begin(), y_max_points.end(), compare_x_lower);
-    std::vector<RealCoordinate> boundary_points;
-    boundary_points.reserve(
-        x_min_points.size() + y_min_points.size() + x_max_points.size()
-        + y_max_points.size() + 4
-    );
-    boundary_points.insert(boundary_points.end(), x_min_points.begin(), x_min_points.end());
-    boundary_points.push_back({min, max});
-    boundary_points.insert(boundary_points.end(), y_max_points.begin(), y_max_points.end());
-    boundary_points.push_back({max, max});
-    boundary_points.insert(boundary_points.end(), x_max_points.begin(), x_max_points.end());
-    boundary_points.push_back({max, min});
-    boundary_points.insert(boundary_points.end(), y_min_points.begin(), y_min_points.end());
-    boundary_points.push_back({min, min});
-    VertexNode* start = vertex_map[{min, min}];
-    for (RealCoordinate& point : boundary_points) {
-        VertexNode* next = vertex_map[point];
-        start->connected.push_back(next);
-        next->connected.push_back(start);
-        start = next;
-    }
-    return graph; 
-}
-*/
-/*
-std::vector<Node*> FortunesAlgorithm::region_graph() {
-    std::vector<Node*> graph;
-    graph.reserve(num_seeds);
-    std::unordered_map<RealCoordinate, Node*> region_map;
-    for (BoundaryRay* ray : rays) {
-        if (ray->v[0] == nullptr || ray->v[1] == nullptr) {
-            continue;
-        }
-        Node* region_a = nullptr;
-        Node* region_b = nullptr;
-        if (auto s = region_map.find(ray->r1); s == region_map.end()) {
-            region_a = new Node(ray->r1);
-            graph.push_back(region_a);
-            region_map.emplace(ray->r1, region_a);
-        }
-        else {
-            region_a = s->second;
-        }
-        if (auto s = region_map.find(ray->r2); s == region_map.end()) {
-            region_b = new Node(ray->r2);
-            graph.push_back(region_b);
-            region_map.emplace(ray->r2, region_b);
-        }
-        else {
-            region_b = s->second;
-        }
-        region_a->edges.push_back(region_b);
-        region_b->edges.push_back(region_a);
-    }
-    return graph;
-}
-*/
 } // namespace Impl

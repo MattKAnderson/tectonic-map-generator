@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <Coordinate.hpp>
 #include <geometry.hpp>
+#include <LineClipper.hpp>
 
 
 struct VertexNode {
@@ -156,8 +157,9 @@ private:
     std::vector<Arc*> closed_regions;
     void insert_balance(Arc* arc);
     void delete_balance(Arc* arc);
-    void rotate_left(Arc* arc);
-    void rotate_right(Arc* arc);
+    Arc* insert_local_balance(Arc* arc);
+    Arc* rotate_left(Arc* arc);
+    Arc* rotate_right(Arc* arc);
     void flip_colors(Arc* arc);
     bool is_red(Arc* arc);
 };
@@ -181,9 +183,12 @@ private:
     std::priority_queue<Event, std::vector<Event>, std::greater<Event>> event_queue;
     BeachLine beach_line;
 
+    int op_counter = 0;
+
     void site_event(const RealCoordinate& focus);
     void intersection_event(const Event& event);
     void bound_DCEL();
+    void clip_to_bbox(double min, double max);
     void flush_beachline();
     void add_vertices_for_bounds_corners();
     void connect_vertices_on_bounds();

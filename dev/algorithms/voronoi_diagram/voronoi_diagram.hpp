@@ -123,7 +123,8 @@ struct Arc {
     RealCoordinate focus;
     Region* region = nullptr;
     bool red = true;
-    bool active = true;
+    //bool active = true;
+    int event_id = -1;
     Arc* left = nullptr;
     Arc* right = nullptr;
     Arc* parent = nullptr;
@@ -166,6 +167,30 @@ public:
 private:
     std::vector<Event> events;
     std::vector<int> available_stack;
+};
+
+class EventQueue {
+public:
+    void set_event_manager(EventManager* em) { this->em = em; }
+    void insert(int event_id);
+    void remove(int event_id);
+    void reserve_space(int nevents);
+    void print_ordered_x();
+    int consume_next();
+    bool empty();
+private:
+    EventManager* em = nullptr;
+    std::vector<int> event_id_heap;
+    std::vector<int> id_to_location{8}; // for fast delete
+    int lchild(int id);
+    int rchild(int id);
+    int parent(int id);
+    void heapify(int id);
+    void up_heapify(int id);
+    void down_heapify(int id);
+    void swap(int ida, int idb);
+    bool compare(int ida, int idb);
+    bool compare_event_id(int event_ida, int event_idb);
 };
 
 struct EventCompare {
@@ -222,20 +247,21 @@ private:
     //std::vector<Impl::Region*> regions;
     std::vector<VertexNode*> vertices;
     std::vector<HalfEdge*> half_edges;
-    std::priority_queue<int, std::vector<int>, EventCompare> event_queue;
+    //std::priority_queue<int, std::vector<int>, EventCompare> event_queue;
+    EventQueue event_queue;
     BeachLine beach_line;
     Region* regions = nullptr;
     int next_region_id = 0;
 
-    int op_counter = 0;
-    std::vector<double> find_arc_times;
-    std::vector<double> insert_arc_times;
-    std::vector<double> delete_arc_times;
-    std::vector<double> new_allocation_times;
-    std::vector<double> site_event_times;
-    std::vector<double> site_new_int_times;
-    std::vector<double> int_event_times;
-    std::vector<double> queue_times;
+    //int op_counter = 0;
+    //std::vector<double> find_arc_times;
+    //std::vector<double> insert_arc_times;
+    //std::vector<double> delete_arc_times;
+    //std::vector<double> new_allocation_times;
+    //std::vector<double> site_event_times;
+    //std::vector<double> site_new_int_times;
+    //std::vector<double> int_event_times;
+    //std::vector<double> queue_times;
 
     void site_event(const RealCoordinate& focus);
     void intersection_event(const Event& event);

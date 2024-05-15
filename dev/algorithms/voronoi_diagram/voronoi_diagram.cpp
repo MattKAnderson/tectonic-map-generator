@@ -48,25 +48,25 @@ VoronoiDiagram::VoronoiDiagram(int seed) {
 void VoronoiDiagram::generate(int xsize, int ysize, int nseeds) {
     nregions = nseeds;
     
-    auto t1 = std::chrono::high_resolution_clock::now();
+    //auto t1 = std::chrono::high_resolution_clock::now();
     seeds = generate_seeds(nseeds, xsize, ysize);
-    auto t2 = std::chrono::high_resolution_clock::now();
-    double et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
-    std::cout << "Time spent generating seeds: " << et / 1e6 << " ms\n";
+    //auto t2 = std::chrono::high_resolution_clock::now();
+    //double et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+    //std::cout << "Time spent generating seeds: " << et / 1e6 << " ms\n";
     //grid_algorithm(seeds, xsize, ysize);
     
     Impl::FortunesAlgorithm generator;
     generator.compute(seeds, 0.0, xsize);
-    t1 = std::chrono::high_resolution_clock::now();
+    //t1 = std::chrono::high_resolution_clock::now();
     vertices = generator.consume_vertex_graph();
-    t2 = std::chrono::high_resolution_clock::now();
-    et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
-    std::cout << "Time spent creating vertex graph: " << et / 1e6 << " ms\n";
-    t1 = std::chrono::high_resolution_clock::now();
+    //t2 = std::chrono::high_resolution_clock::now();
+    //et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+    //std::cout << "Time spent creating vertex graph: " << et / 1e6 << " ms\n";
+    //t1 = std::chrono::high_resolution_clock::now();
     regions = generator.consume_region_graph();
-    t2 = std::chrono::high_resolution_clock::now();
-    et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
-    std::cout << "Time spent creating region graph: " << et / 1e6 << " ms\n";
+    //t2 = std::chrono::high_resolution_clock::now();
+    //et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+    //std::cout << "Time spent creating region graph: " << et / 1e6 << " ms\n";
 }
 
 void VoronoiDiagram::generate_from_seeds(
@@ -481,7 +481,7 @@ void BeachLine::remove_arc(Arc* arc) {
         else if (arc->parent->left == arc) { arc->parent->left = upper; }
         else { arc->parent->right = upper; }
     }
-    arc->active = false;
+    //arc->active = false;
     closed_regions.push_back(arc);
     // TODO: delete_balance(y);
 }
@@ -532,7 +532,15 @@ void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
             int event_id = event_manager.create(
                 {intersect.x + dist, intersect.y}, intersect, split_arc
             );
-            event_queue.push(event_id);
+            //auto t1 = std::chrono::high_resolution_clock::now();
+            if (split_arc->event_id != -1) {
+                event_queue.remove(split_arc->event_id);
+            }
+            split_arc->event_id = event_id;
+            event_queue.insert(event_id);
+            //event_queue.push(event_id);
+            //auto t2 = std::chrono::high_resolution_clock::now();
+            //queue_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count());
         }
     } 
     if (lower_lower) {
@@ -544,7 +552,15 @@ void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
             int event_id = event_manager.create(
                 {intersect.x + dist, intersect.y}, intersect, arc
             );
-            event_queue.push(event_id);
+            //auto t1 = std::chrono::high_resolution_clock::now();
+            if (arc->event_id != -1) {
+                event_queue.remove(arc->event_id);
+            }
+            arc->event_id = event_id;
+            event_queue.insert(event_id);
+            //event_queue.push(event_id);
+            //auto t2 = std::chrono::high_resolution_clock::now();
+            //queue_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count());
         }
     }
 }
@@ -599,6 +615,7 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
     l_arc->upper_edge = new_lower_half_edge;
 
     beach_line.remove_arc(arc);
+    event_queue.remove(arc->event_id);
 
     const RealCoordinate& fu = u_arc->focus;
     const RealCoordinate& fl = l_arc->focus;
@@ -617,7 +634,17 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
                 int event_id = event_manager.create(
                     {known_at_x, new_intersect.y}, new_intersect, u_arc
                 );
-                event_queue.push(event_id);
+                if (u_arc->event_id != -1) {
+                    event_queue.remove(u_arc->event_id);
+                }
+                u_arc->event_id = event_id;
+                //event_queue.insert(event_id);
+                //event_queue.push(event_id);
+            //auto t1 = std::chrono::high_resolution_clock::now();
+            //event_queue.push(event_id);
+                event_queue.insert(event_id);
+            //auto t2 = std::chrono::high_resolution_clock::now();
+            //queue_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count());
             }
         }
 
@@ -635,7 +662,16 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
                 int event_id = event_manager.create(
                     {known_at_x, new_intersect.y}, new_intersect, l_arc
                 );
-                event_queue.push(event_id);
+                if (l_arc->event_id != -1) {
+                    event_queue.remove(l_arc->event_id);
+                }
+                l_arc->event_id = event_id;
+                //event_queue.push(event_id);
+            //auto t1 = std::chrono::high_resolution_clock::now();
+                event_queue.insert(event_id);
+            //event_queue.push(event_id);
+            //auto t2 = std::chrono::high_resolution_clock::now();
+            //queue_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count());
             }
         }
     }
@@ -672,63 +708,70 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
     half_edges.reserve(num_seeds * 3 - 6);
     //rays.reserve(3 * num_seeds);
     event_manager = EventManager();
-    auto cmp = EventCompare(&event_manager);
-    event_queue = std::priority_queue<int, std::vector<int>, EventCompare>(cmp);
-
+    //auto cmp = EventCompare(&event_manager);
+    //event_queue = std::priority_queue<int, std::vector<int>, EventCompare>(cmp);
+    event_queue = EventQueue();
+    event_queue.set_event_manager(&event_manager);
     int event_id;
     for (const RealCoordinate& seed : seeds) { 
         event_id = event_manager.create(seed);
-        event_queue.emplace(event_id); 
+        event_queue.insert(event_id);
+        //event_queue.emplace(event_id); 
     }
-    
-    event_id = event_queue.top(); event_queue.pop();
+    //event_queue.print_ordered_x();
+    //event_id = event_queue.top(); event_queue.pop();
+    event_id = event_queue.consume_next();
     const RealCoordinate& s1 = event_manager.get(event_id).coord;
     regions[next_region_id] = {s1, nullptr};
     beach_line = BeachLine(s1, &regions[next_region_id]);
     ++next_region_id;
     event_manager.remove(event_id);
-    auto t1 = std::chrono::high_resolution_clock::now();
+    //auto t1 = std::chrono::high_resolution_clock::now();
+    //std::cout << "About to start main loop" << std::endl;
     while (!event_queue.empty()) {
         
         //auto t1a = std::chrono::high_resolution_clock::now();
-        event_id = event_queue.top(); event_queue.pop();
+        //event_id = event_queue.top(); event_queue.pop();
+        event_id = event_queue.consume_next();
         //auto t2a = std::chrono::high_resolution_clock::now();
         const Event& event = event_manager.get(event_id);
         //queue_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2a - t1a).count());
 
         if (event.intersect_point == nullptr) { 
             //auto t1 = std::chrono::high_resolution_clock::now();
+            //std::cout << "Site x: (" << event.coord.x << ", " << event.coord.y << ")" << std::endl;
             site_event(event.coord); 
             //auto t2 = std::chrono::high_resolution_clock::now();
             //site_event_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count());
         }
-        else if (event.associated_arc->active) {
+        else {
             //auto t1 = std::chrono::high_resolution_clock::now();
+            //std::cout << "Int:  (" << event.coord.x <<  ", " << event.coord.y << ")" << std::endl;
             intersection_event(event); 
             //auto t2 = std::chrono::high_resolution_clock::now();
             //int_event_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count());
         }
         event_manager.remove(event_id);
     }
-    auto t2 = std::chrono::high_resolution_clock::now();
-    double et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
-    std::cout << "Time spent on main loop: " << et / 1e6 << " ms\n";
-    t1 = std::chrono::high_resolution_clock::now();
+    //auto t2 = std::chrono::high_resolution_clock::now();
+    //double et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
+    //std::cout << "Time spent on main loop: " << et / 1e6 << " ms" << std::endl;
+    //t1 = std::chrono::high_resolution_clock::now();
     bound_DCEL();
-    t2 = std::chrono::high_resolution_clock::now();
-    et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
-    std::cout << "Time spent bounding DCEL: " << et / 1e6 << " ms\n";
+    //t2 = std::chrono::high_resolution_clock::now();
+    //et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
+    //std::cout << "Time spent bounding DCEL: " << et / 1e6 << " ms\n";
 
 
-    double find_time = std::accumulate(find_arc_times.begin(), find_arc_times.end(), 0.0);
-    double ins_time = std::accumulate(insert_arc_times.begin(), insert_arc_times.end(), 0.0);
-    double del_time = std::accumulate(delete_arc_times.begin(), delete_arc_times.end(), 0.0);
-    double new_time = std::accumulate(new_allocation_times.begin(), new_allocation_times.end(), 0.0);
-    double site_time = std::accumulate(site_event_times.begin(), site_event_times.end(), 0.0);
-    double int_time = std::accumulate(int_event_times.begin(), int_event_times.end(), 0.0);
-    double queue_time = std::accumulate(queue_times.begin(), queue_times.end(), 0.0);
-    double site_new_int_time = std::accumulate(site_new_int_times.begin(), site_new_int_times.end(), 0.0);
-    std::cout << "Number of triangle circumcenter ops: " << op_counter << std::endl;
+    //double find_time = std::accumulate(find_arc_times.begin(), find_arc_times.end(), 0.0);
+    //double ins_time = std::accumulate(insert_arc_times.begin(), insert_arc_times.end(), 0.0);
+    //double del_time = std::accumulate(delete_arc_times.begin(), delete_arc_times.end(), 0.0);
+    //double new_time = std::accumulate(new_allocation_times.begin(), new_allocation_times.end(), 0.0);
+    //double site_time = std::accumulate(site_event_times.begin(), site_event_times.end(), 0.0);
+    //double int_time = std::accumulate(int_event_times.begin(), int_event_times.end(), 0.0);
+    //double queue_time = std::accumulate(queue_times.begin(), queue_times.end(), 0.0);
+    //double site_new_int_time = std::accumulate(site_new_int_times.begin(), site_new_int_times.end(), 0.0);
+    //std::cout << "Number of triangle circumcenter ops: " << op_counter << std::endl;
     //std::cout << "Aggregate time spent finding: " << find_time / 1e6 << " ms\n"
     //          << "Per call time spent finding:  " << find_time / find_arc_times.size() << " ns\n\n"
     //          << "Aggregate time spent inserting: " << ins_time / 1e6 << " ms\n"
@@ -736,14 +779,14 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
     //         << "Aggregate time spent deleting:  " << del_time / 1e6 << " ms\n" 
     //          << "Per call time spent deleting:   " << del_time / delete_arc_times.size() << " ns\n\n"
     //          << "New allocations time: " << new_time / 1e6 << " ms\n"
-    std::cout          << "Aggregate time spent on site events:    " << site_time / 1e6 << " ms\n"
-              << "Avg Per call time spent on site events: " << site_time / site_event_times.size() << " ns\n\n"
+    //std::cout          << "Aggregate time spent on site events:    " << site_time / 1e6 << " ms\n"
+    //          << "Avg Per call time spent on site events: " << site_time / site_event_times.size() << " ns\n"
     //          << "Aggregate time spent on site new int events:    " << site_new_int_time / 1e6 << " ms\n"
     //          << "Avg Per call time spent on site new int events: " << site_new_int_time / site_new_int_times.size() << " ns\n\n"
-              << "Aggregate time spent on int events:     " << int_time / 1e6 << " ms\n"
-              << "Avg Per call time spent on int events:  " << int_time / int_event_times.size() << " ns\n\n"
-              << "Aggregate time spent on queue:    " << queue_time / 1e6 << " ms\n"
-              << "Avg Per call time spent on queue: " << queue_time / queue_times.size() << " ns\n";
+    //          << "Aggregate time spent on int events:     " << int_time / 1e6 << " ms\n"
+    //          << "Avg Per call time spent on int events:  " << int_time / int_event_times.size() << " ns\n"
+    //          << "Aggregate time spent on queue:    " << queue_time / 1e6 << " ms\n"
+    //          << "Avg Per call time spent on queue: " << queue_time / queue_times.size() << " ns\n";
 ;
 }
 
@@ -1056,5 +1099,117 @@ void EventManager::remove(int id) {
     available_stack.push_back(id);
 }
 
+void EventQueue::insert(int event_id) {
+    event_id_heap.push_back(event_id);
+    if (event_id >= id_to_location.size()) {
+        int new_size = id_to_location.size() * 2;
+        while (new_size <= event_id) { new_size *= 2; }
+        id_to_location.resize(new_size, -1);
+    }
+    id_to_location[event_id] = event_id_heap.size() - 1;
+    up_heapify(event_id_heap.size() - 1);
+}
+
+void EventQueue::remove(int event_id) {
+    int heap_id = id_to_location[event_id];
+    if (heap_id == -1) { return; } 
+    id_to_location[event_id] = -1;
+    event_id_heap[heap_id] = event_id_heap.back();
+    id_to_location[event_id_heap.back()] = heap_id;
+    event_id_heap.pop_back();
+    if (compare_event_id(event_id, event_id_heap[heap_id])) {
+        up_heapify(heap_id);
+    }
+    else {
+        down_heapify(heap_id);
+    }
+}
+
+int EventQueue::consume_next() {
+    int event_id = event_id_heap[0];
+    swap(0, event_id_heap.size() - 1);
+    event_id_heap.pop_back();
+    id_to_location[event_id] = -1;
+    down_heapify(0);
+    return event_id;
+}
+
+bool EventQueue::empty() {
+    return event_id_heap.size() == 0;
+}
+
+int EventQueue::lchild(int id) {
+    return 2 * id + 1;
+}
+
+int EventQueue::rchild(int id) {
+    return 2 * id + 2;
+}
+
+int EventQueue::parent(int id) {
+    return (id - 1 - (id & 1 ^ 1)) >> 1;
+}
+
+void EventQueue::up_heapify(int id) {
+    int parent_id = parent(id);
+    while (id > 0 && compare(parent_id, id)) {
+        swap(parent_id, id);
+        id = parent_id;
+        parent_id = parent(id);
+    }
+}
+
+void EventQueue::down_heapify(int id) {
+    while (id < event_id_heap.size()) {
+        int id_of_lowest = id;
+        int lc_id = lchild(id);
+        int rc_id = rchild(id);
+        int size = event_id_heap.size();
+        if (lc_id < size && compare(id_of_lowest, lc_id)) { id_of_lowest = lc_id; }
+        if (rc_id < size && compare(id_of_lowest, rc_id)) { id_of_lowest = rc_id; }
+        if (id_of_lowest != id) {
+            swap(id_of_lowest, id);
+            id = id_of_lowest;
+        }
+        else {
+            break;
+        }
+    }
+}
+
+void EventQueue::swap(int ida, int idb) {
+    int event_id_a = event_id_heap[ida];
+    int event_id_b = event_id_heap[idb];
+    id_to_location[event_id_a] = idb;
+    id_to_location[event_id_b] = ida;
+    event_id_heap[ida] = event_id_b;
+    event_id_heap[idb] = event_id_a;
+ }
+
+// this might be really inefficient
+bool EventQueue::compare(int ida, int idb) {
+    int event_ida = event_id_heap[ida];
+    int event_idb = event_id_heap[idb];
+    return compare_event_id(event_ida, event_idb);
+}
+
+bool EventQueue::compare_event_id(int event_ida, int event_idb) {
+    const RealCoordinate& ca = em->get(event_ida).coord;
+    const RealCoordinate& cb = em->get(event_idb).coord;
+    return ca.x > cb.x || (ca.x == cb.x && ca.y > cb.y);
+}
+
+void EventQueue::print_ordered_x() {
+    std::queue<int> index_queue;
+    index_queue.push(0);
+    while (!index_queue.empty()) {
+        int id = index_queue.front(); index_queue.pop();
+        std::cout << em->get(event_id_heap[id]).coord.x << "\n";
+        int lc_id = lchild(id);
+        int rc_id = rchild(id);
+        if (lc_id < event_id_heap.size()) { index_queue.push(lc_id); }
+        if (rc_id < event_id_heap.size()) { index_queue.push(rc_id); }
+    }
+}
 
 } // namespace Impl

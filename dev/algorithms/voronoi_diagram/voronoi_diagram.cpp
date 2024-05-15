@@ -47,13 +47,26 @@ VoronoiDiagram::VoronoiDiagram(int seed) {
 
 void VoronoiDiagram::generate(int xsize, int ysize, int nseeds) {
     nregions = nseeds;
+    
+    auto t1 = std::chrono::high_resolution_clock::now();
     seeds = generate_seeds(nseeds, xsize, ysize);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    double et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+    std::cout << "Time spent generating seeds: " << et / 1e6 << " ms\n";
     //grid_algorithm(seeds, xsize, ysize);
     
     Impl::FortunesAlgorithm generator;
     generator.compute(seeds, 0.0, xsize);
+    t1 = std::chrono::high_resolution_clock::now();
     vertices = generator.consume_vertex_graph();
+    t2 = std::chrono::high_resolution_clock::now();
+    et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+    std::cout << "Time spent creating vertex graph: " << et / 1e6 << " ms\n";
+    t1 = std::chrono::high_resolution_clock::now();
     regions = generator.consume_region_graph();
+    t2 = std::chrono::high_resolution_clock::now();
+    et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+    std::cout << "Time spent creating region graph: " << et / 1e6 << " ms\n";
 }
 
 void VoronoiDiagram::generate_from_seeds(
@@ -274,17 +287,35 @@ Arc* BeachLine::find_intersected_arc(const RealCoordinate& c) {
 
     while (true) {
         if (node->left != nullptr) {
-            y = parabolae_y_intercept(c.x, node->upper->focus, node->focus);
-            if (c.y > y) {
+            if (node->upper->focus.x > node->focus.x && c.y > node->upper->focus.y) {
                 node = node->left;
                 continue;
-            } 
+            }
+            else if (
+                node->upper->focus.x >= node->focus.x 
+                || node->upper->focus.x < node->focus.x && c.y > node->focus.y
+            ) {
+                y = parabolae_y_intercept(c.x, node->upper->focus, node->focus);
+                if (c.y > y) {
+                    node = node->left;
+                    continue;
+                } 
+            }
         }
         if (node->right != nullptr) {
-            y = parabolae_y_intercept(c.x, node->focus, node->lower->focus);
-            if (c.y < y) {
+            if (node->focus.x < node->lower->focus.x && c.y < node->lower->focus.y) {
                 node = node->right;
                 continue;
+            }
+            else if (
+                node->focus.x <= node->lower->focus.x
+                || node->focus.x > node->lower->focus.x && c.y < node->upper->focus.y 
+            ) {
+                y = parabolae_y_intercept(c.x, node->focus, node->lower->focus);
+                if (c.y < y) {
+                    node = node->right;
+                    continue;
+                }
             }
         }
         return node;
@@ -468,10 +499,11 @@ Event new_intersection_event(RealCoordinate& intersect, Arc* closing_region) {
 }
 
 void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
-    regions.push_back(new Region{focus});
+    regions[next_region_id] = {focus, nullptr};
     Arc* arc = beach_line.find_intersected_arc(focus);
-    Arc* new_arc = new Arc{focus, regions.back()};
+    Arc* new_arc = new Arc{focus, &regions[next_region_id]};
     Arc* split_arc = new Arc{arc->focus, arc->region};
+    ++next_region_id;
 
     beach_line.insert_arc_above(arc, new_arc);
     beach_line.insert_arc_above(new_arc, split_arc);
@@ -495,18 +527,24 @@ void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
         RealCoordinate intersect = triangle_circumcenter(
             focus, split_arc->focus, upper_upper->focus
         );
-        ++op_counter;
         if (focus.y < intersect.y) {
-           event_queue.push(new_intersection_event(intersect, split_arc)); 
+            double dist = euclidean_distance(split_arc->focus, intersect); 
+            int event_id = event_manager.create(
+                {intersect.x + dist, intersect.y}, intersect, split_arc
+            );
+            event_queue.push(event_id);
         }
     } 
     if (lower_lower) {
         RealCoordinate intersect = triangle_circumcenter(
             focus, arc->focus, lower_lower->focus
         );
-        op_counter++;
         if (focus.y > intersect.y) {
-            event_queue.push(new_intersection_event(intersect, arc));
+            double dist = euclidean_distance(arc->focus, intersect);
+            int event_id = event_manager.create(
+                {intersect.x + dist, intersect.y}, intersect, arc
+            );
+            event_queue.push(event_id);
         }
     }
 }
@@ -537,12 +575,11 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
     Arc* arc = event.associated_arc;
     Arc* u_arc = arc->upper;
     Arc* l_arc = arc->lower;
-    
+
+    VertexNode* new_intersect = new VertexNode(intersect);
+     
     vertices.push_back(new VertexNode(intersect));
 
-    /*
-     *  Double check this logic tomorrow
-     */
     arc->upper_edge->origin = vertices.back();
     arc->upper_edge->prev = arc->lower_edge;
     arc->lower_edge->next = arc->upper_edge;
@@ -570,7 +607,6 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
     if (uu_arc && fl != uu_arc->focus) {
         const RealCoordinate& fuu = uu_arc->focus;
         RealCoordinate new_intersect = triangle_circumcenter(fl, fu, fuu);
-        ++op_counter;
         double known_at_x = new_intersect.x + euclidean_distance(new_intersect, fu);
         if (new_intersect != intersect 
             && event.coord.x < known_at_x 
@@ -578,7 +614,10 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
         ) {
             RealCoordinate u_edge = parabola_intercept(event.coord.x, fuu, fu);
             if ((fuu.y - fu.y) * (new_intersect.x - u_edge.x) >= 0.0) {
-                event_queue.push({{known_at_x, new_intersect.y}, new_intersect, u_arc});
+                int event_id = event_manager.create(
+                    {known_at_x, new_intersect.y}, new_intersect, u_arc
+                );
+                event_queue.push(event_id);
             }
         }
 
@@ -586,7 +625,6 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
     if (ll_arc && u_arc->focus != ll_arc->focus) {
         const RealCoordinate& fll = ll_arc->focus;
         RealCoordinate new_intersect = triangle_circumcenter(fu, fl, fll);
-        ++op_counter;
         double known_at_x = new_intersect.x + euclidean_distance(new_intersect, fl);
         if (new_intersect != intersect
             && event.coord.x < known_at_x
@@ -594,7 +632,10 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
         ) {
             RealCoordinate l_edge = parabola_intercept(event.coord.x, fl, fll);
             if ((fl.y - fll.y) * (new_intersect.x - l_edge.x) >= 0.0) {
-                event_queue.push({{known_at_x, new_intersect.y}, new_intersect, l_arc});
+                int event_id = event_manager.create(
+                    {known_at_x, new_intersect.y}, new_intersect, l_arc
+                );
+                event_queue.push(event_id);
             }
         }
     }
@@ -623,23 +664,87 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
     this->max = max;
     num_seeds = seeds.size();
     //rays = {};
-    regions = {};
-    regions.reserve(num_seeds);
+    if (regions != nullptr) {
+        delete[] regions;
+    }
+    regions = new Region[num_seeds];
     half_edges = {};
     half_edges.reserve(num_seeds * 3 - 6);
     //rays.reserve(3 * num_seeds);
-    event_queue = {};
-    for (const RealCoordinate& seed : seeds) { event_queue.emplace(seed); }
-    const RealCoordinate s1 = event_queue.top().coord; event_queue.pop();
-    regions.push_back(new Region{s1});
-    beach_line = BeachLine(s1, regions.back());
-    while (!event_queue.empty()) {
-        const Event event = event_queue.top(); event_queue.pop();
-        if (event.intersect_point == nullptr) { site_event(event.coord); }
-        else if (event.associated_arc->active) { intersection_event(event); }
+    event_manager = EventManager();
+    auto cmp = EventCompare(&event_manager);
+    event_queue = std::priority_queue<int, std::vector<int>, EventCompare>(cmp);
+
+    int event_id;
+    for (const RealCoordinate& seed : seeds) { 
+        event_id = event_manager.create(seed);
+        event_queue.emplace(event_id); 
     }
+    
+    event_id = event_queue.top(); event_queue.pop();
+    const RealCoordinate& s1 = event_manager.get(event_id).coord;
+    regions[next_region_id] = {s1, nullptr};
+    beach_line = BeachLine(s1, &regions[next_region_id]);
+    ++next_region_id;
+    event_manager.remove(event_id);
+    auto t1 = std::chrono::high_resolution_clock::now();
+    while (!event_queue.empty()) {
+        
+        //auto t1a = std::chrono::high_resolution_clock::now();
+        event_id = event_queue.top(); event_queue.pop();
+        //auto t2a = std::chrono::high_resolution_clock::now();
+        const Event& event = event_manager.get(event_id);
+        //queue_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2a - t1a).count());
+
+        if (event.intersect_point == nullptr) { 
+            //auto t1 = std::chrono::high_resolution_clock::now();
+            site_event(event.coord); 
+            //auto t2 = std::chrono::high_resolution_clock::now();
+            //site_event_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count());
+        }
+        else if (event.associated_arc->active) {
+            //auto t1 = std::chrono::high_resolution_clock::now();
+            intersection_event(event); 
+            //auto t2 = std::chrono::high_resolution_clock::now();
+            //int_event_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count());
+        }
+        event_manager.remove(event_id);
+    }
+    auto t2 = std::chrono::high_resolution_clock::now();
+    double et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
+    std::cout << "Time spent on main loop: " << et / 1e6 << " ms\n";
+    t1 = std::chrono::high_resolution_clock::now();
     bound_DCEL();
+    t2 = std::chrono::high_resolution_clock::now();
+    et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
+    std::cout << "Time spent bounding DCEL: " << et / 1e6 << " ms\n";
+
+
+    double find_time = std::accumulate(find_arc_times.begin(), find_arc_times.end(), 0.0);
+    double ins_time = std::accumulate(insert_arc_times.begin(), insert_arc_times.end(), 0.0);
+    double del_time = std::accumulate(delete_arc_times.begin(), delete_arc_times.end(), 0.0);
+    double new_time = std::accumulate(new_allocation_times.begin(), new_allocation_times.end(), 0.0);
+    double site_time = std::accumulate(site_event_times.begin(), site_event_times.end(), 0.0);
+    double int_time = std::accumulate(int_event_times.begin(), int_event_times.end(), 0.0);
+    double queue_time = std::accumulate(queue_times.begin(), queue_times.end(), 0.0);
+    double site_new_int_time = std::accumulate(site_new_int_times.begin(), site_new_int_times.end(), 0.0);
     std::cout << "Number of triangle circumcenter ops: " << op_counter << std::endl;
+    //std::cout << "Aggregate time spent finding: " << find_time / 1e6 << " ms\n"
+    //          << "Per call time spent finding:  " << find_time / find_arc_times.size() << " ns\n\n"
+    //          << "Aggregate time spent inserting: " << ins_time / 1e6 << " ms\n"
+    //          << "Per call time spent inserting:  " << ins_time / insert_arc_times.size() << " ns\n\n"
+    //         << "Aggregate time spent deleting:  " << del_time / 1e6 << " ms\n" 
+    //          << "Per call time spent deleting:   " << del_time / delete_arc_times.size() << " ns\n\n"
+    //          << "New allocations time: " << new_time / 1e6 << " ms\n"
+    std::cout          << "Aggregate time spent on site events:    " << site_time / 1e6 << " ms\n"
+              << "Avg Per call time spent on site events: " << site_time / site_event_times.size() << " ns\n\n"
+    //          << "Aggregate time spent on site new int events:    " << site_new_int_time / 1e6 << " ms\n"
+    //          << "Avg Per call time spent on site new int events: " << site_new_int_time / site_new_int_times.size() << " ns\n\n"
+              << "Aggregate time spent on int events:     " << int_time / 1e6 << " ms\n"
+              << "Avg Per call time spent on int events:  " << int_time / int_event_times.size() << " ns\n\n"
+              << "Aggregate time spent on queue:    " << queue_time / 1e6 << " ms\n"
+              << "Avg Per call time spent on queue: " << queue_time / queue_times.size() << " ns\n";
+;
 }
 
 RealCoordinate clip_infinite_edge(
@@ -852,8 +957,6 @@ bool inside_bbox(const RealCoordinate& c, double min, double max) {
     return c.x >= min && c.x <= max && c.y >= min && c.y <= max;
 }
 
-
-
 void FortunesAlgorithm::clip_to_bbox(double min, double max) {
 
     for (auto* edge : half_edges) {
@@ -883,19 +986,20 @@ std::vector<RegionNode*> FortunesAlgorithm::consume_region_graph() {
 std::vector<RegionNode*> FortunesAlgorithm::region_graph_from_regions() {
     std::vector<RegionNode*> nodes;
     std::unordered_map<Region*, RegionNode*> node_map;
-    nodes.reserve(regions.size());
-    for (Region* region : regions) {
+    nodes.reserve(num_seeds);
+    for (int i = 0; i < num_seeds; i++) {
         nodes.push_back(new RegionNode);
-        node_map.insert({region, nodes.back()});
+        node_map.insert({&regions[i], nodes.back()});
     }
     std::cout << "Finished iterating over regions" << std::endl;
-    for (Region* region : regions) {
-        RegionNode* this_region = node_map[region];
-        HalfEdge* edge_ptr = region->an_edge;
+    for (int i = 0; i < num_seeds; i++) {
+        
+        RegionNode* this_region = node_map[&regions[i]];
+        HalfEdge* edge_ptr = regions[i].an_edge;
         if (edge_ptr == nullptr) {
             std::cout << "edge_ptr was nullptr" << std::endl;
         }
-        while (edge_ptr->next != region->an_edge) {
+        while (edge_ptr->next != regions[i].an_edge) {
             this_region->vertices.push_back(edge_ptr->origin->coord);
             if (edge_ptr->twin->region != nullptr) {
                 this_region->adjacent.push_back(node_map[edge_ptr->twin->region]);
@@ -906,5 +1010,51 @@ std::vector<RegionNode*> FortunesAlgorithm::region_graph_from_regions() {
     }
     return std::move(nodes);
 }
+
+const Event& EventManager::get(int id) {
+    return events[id];
+}
+
+int EventManager::create(const RealCoordinate& coord) {
+    int id;
+    if (available_stack.size()) {
+        id = available_stack.back(); available_stack.pop_back();
+        // this logic should be pulled out into a method of the Event
+        // class to respect proper encapsulation
+        events[id].coord = coord;
+        events[id].associated_arc = nullptr;
+        delete events[id].intersect_point;
+        events[id].intersect_point = nullptr;
+    }   
+    else {
+        id = events.size();
+        events.emplace_back(coord);
+    }
+    return id;
+}
+
+int EventManager::create(
+    const RealCoordinate& coord, const RealCoordinate& intersect, 
+    Arc* associated_arc
+) {
+    int id;
+    if (available_stack.size()) {
+        id = available_stack.back(); available_stack.pop_back();
+        events[id].coord = coord;
+        events[id].associated_arc = associated_arc;
+        delete events[id].intersect_point;
+        events[id].intersect_point = new RealCoordinate(intersect);
+    }
+    else {
+        id = events.size();
+        events.emplace_back(coord, intersect, associated_arc);
+    }
+    return id;
+}
+
+void EventManager::remove(int id) {
+    available_stack.push_back(id);
+}
+
 
 } // namespace Impl

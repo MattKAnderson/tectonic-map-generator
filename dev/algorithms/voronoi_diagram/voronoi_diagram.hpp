@@ -12,6 +12,7 @@
 #include <geometry.hpp>
 #include <LineClipper.hpp>
 
+#include <chrono>
 
 struct VertexNode {
     RealCoordinate coord;
@@ -117,8 +118,6 @@ struct HalfEdge {
     VertexNode* origin = nullptr;
 };
 
-struct Event;
-
 struct Arc {
     Arc(const RealCoordinate& focus, Region* region): focus(focus), region(region) {};
     RealCoordinate focus;
@@ -134,6 +133,47 @@ struct Arc {
     HalfEdge* lower_edge = nullptr;
     //Impl::BoundaryRay* lower_ray = nullptr;
     //Impl::BoundaryRay* upper_ray = nullptr;
+};
+
+struct Event {
+    RealCoordinate coord;
+    RealCoordinate* intersect_point = nullptr;
+    Arc* associated_arc = nullptr;
+    Event(
+        const RealCoordinate& coord, const RealCoordinate& intersect, 
+        Arc* associated_arc
+    );
+    Event(const RealCoordinate& coord);
+    Event(const Event& other);
+    ~Event();
+    Event& operator=(const Event& other);
+    bool operator< (const Event& other) const;
+    bool operator> (const Event& other) const;
+    bool operator== (const Event& other) const;
+};
+
+class EventManager {
+public:
+    EventManager() {};
+    const Event& get(int id);
+    int create(const RealCoordinate& coord);
+    int create(
+        const RealCoordinate& coord, const RealCoordinate& intersect, 
+        Arc* associated_arc
+    );
+    void remove(int id);
+
+private:
+    std::vector<Event> events;
+    std::vector<int> available_stack;
+};
+
+struct EventCompare {
+    EventManager* em = nullptr;
+    EventCompare() {}
+    EventCompare(EventManager* em): em(em) {}
+    EventCompare& operator=(const EventCompare& other);
+    bool operator()(int id_a, int id_b) const; 
 };
 
 class BeachLine {
@@ -167,6 +207,7 @@ private:
 class FortunesAlgorithm {
 public:
     FortunesAlgorithm() {}
+    //TODO ~FortunesAlgorithm();
     void compute(std::vector<RealCoordinate>& seeds, double min, double max);
     //std::vector<Node*> vertex_graph();
     //std::vector<Node*> region_graph();
@@ -176,14 +217,25 @@ private:
     int num_seeds;
     double min;
     double max;
+    EventManager event_manager;
     std::vector<Impl::BoundaryRay*> rays;
-    std::vector<Impl::Region*> regions;
+    //std::vector<Impl::Region*> regions;
     std::vector<VertexNode*> vertices;
     std::vector<HalfEdge*> half_edges;
-    std::priority_queue<Event, std::vector<Event>, std::greater<Event>> event_queue;
+    std::priority_queue<int, std::vector<int>, EventCompare> event_queue;
     BeachLine beach_line;
+    Region* regions = nullptr;
+    int next_region_id = 0;
 
     int op_counter = 0;
+    std::vector<double> find_arc_times;
+    std::vector<double> insert_arc_times;
+    std::vector<double> delete_arc_times;
+    std::vector<double> new_allocation_times;
+    std::vector<double> site_event_times;
+    std::vector<double> site_new_int_times;
+    std::vector<double> int_event_times;
+    std::vector<double> queue_times;
 
     void site_event(const RealCoordinate& focus);
     void intersection_event(const Event& event);
@@ -205,22 +257,7 @@ private:
     );
 };
 
-struct Event {
-    RealCoordinate coord;
-    RealCoordinate* intersect_point = nullptr;
-    Arc* associated_arc = nullptr;
-    Event(
-        const RealCoordinate& coord, const RealCoordinate& intersect, 
-        Arc* associated_arc
-    );
-    Event(const RealCoordinate& coord);
-    Event(const Event& other);
-    ~Event();
-    Event& operator=(const Event& other);
-    bool operator< (const Event& other) const;
-    bool operator> (const Event& other) const;
-    bool operator== (const Event& other) const;
-};
+
 /*
 inline Arc::Arc(const RealCoordinate& focus, Region* region):
     focus(focus), region(region), red(true), active(true),
@@ -232,6 +269,17 @@ inline Arc::Arc(const RealCoordinate& focus, Region* region):
             std::cout << "left was not nullptr" << std::endl;
         }
 }*/
+
+inline EventCompare& EventCompare::operator=(const EventCompare& other) {
+    em = other.em;
+    return *this;
+}
+
+inline bool EventCompare::operator()(int id_a, int id_b) const {
+    const RealCoordinate& ca = em->get(id_a).coord;
+    const RealCoordinate& cb = em->get(id_b).coord;
+    return ca.x > cb.x || (ca.x == cb.x && ca.y > cb.y);
+}
 
 inline BeachLine::~BeachLine() {
     std::vector<Arc*> stack = {head};

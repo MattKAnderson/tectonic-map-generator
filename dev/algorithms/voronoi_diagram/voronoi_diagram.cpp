@@ -508,9 +508,7 @@ void BeachLine::reserve(int n) {
 
 Event new_intersection_event(RealCoordinate& intersect, Arc* closing_region) {
     double dist = euclidean_distance(closing_region->focus, intersect);
-    Event event({intersect.x + dist, intersect.y});
-    event.intersect_point = new RealCoordinate(intersect);
-    event.associated_arc = closing_region;
+    Event event({intersect.x + dist, intersect.y}, intersect, closing_region);
     return event;
 }
 
@@ -603,7 +601,7 @@ double ray_direction(
 }
 
 void FortunesAlgorithm::intersection_event(const Event& event) {
-    const RealCoordinate& intersect = *event.intersect_point;
+    const RealCoordinate& intersect = event.intersect_point;
     Arc* arc = event.associated_arc;
     Arc* u_arc = arc->upper;
     Arc* l_arc = arc->lower;
@@ -753,7 +751,7 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
         const Event& event = event_manager.get(event_id);
         //queue_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2a - t1a).count());
 
-        if (event.intersect_point == nullptr) { 
+        if (event.associated_arc == nullptr) { 
             //auto t1 = std::chrono::high_resolution_clock::now();
             //std::cout << "Site x: (" << event.coord.x << ", " << event.coord.y << ")" << std::endl;
             site_event(event.coord); 
@@ -1078,12 +1076,10 @@ int EventManager::create(const RealCoordinate& coord) {
     int id;
     if (available_stack.size()) {
         id = available_stack.back(); available_stack.pop_back();
-        // this logic should be pulled out into a method of the Event
-        // class to respect proper encapsulation
         events[id].coord = coord;
         events[id].associated_arc = nullptr;
-        delete events[id].intersect_point;
-        events[id].intersect_point = nullptr;
+        // intersect_point will contain garbage, it should not be accessed
+        // given that associated_arc is set to nullptr
     }   
     else {
         id = events.size();
@@ -1101,8 +1097,7 @@ int EventManager::create(
         id = available_stack.back(); available_stack.pop_back();
         events[id].coord = coord;
         events[id].associated_arc = associated_arc;
-        delete events[id].intersect_point;
-        events[id].intersect_point = new RealCoordinate(intersect);
+        events[id].intersect_point = intersect;
     }
     else {
         id = events.size();

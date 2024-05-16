@@ -138,19 +138,13 @@ struct Arc {
 
 struct Event {
     RealCoordinate coord;
-    RealCoordinate* intersect_point = nullptr;
+    RealCoordinate intersect_point;
     Arc* associated_arc = nullptr;
     Event(
         const RealCoordinate& coord, const RealCoordinate& intersect, 
         Arc* associated_arc
     );
     Event(const RealCoordinate& coord);
-    Event(const Event& other);
-    ~Event();
-    Event& operator=(const Event& other);
-    bool operator< (const Event& other) const;
-    bool operator> (const Event& other) const;
-    bool operator== (const Event& other) const;
 };
 
 class EventManager {
@@ -243,7 +237,7 @@ private:
     double min;
     double max;
     EventManager event_manager;
-    std::vector<Impl::BoundaryRay*> rays;
+    //std::vector<Impl::BoundaryRay*> rays;
     //std::vector<Impl::Region*> regions;
     std::vector<VertexNode*> vertices;
     std::vector<HalfEdge*> half_edges;
@@ -338,52 +332,7 @@ inline Event::Event(const RealCoordinate& coord): coord(coord) {}
 inline Event::Event(
     const RealCoordinate& coord, const RealCoordinate& intersect,
     Arc* associated_arc
-): coord(coord), intersect_point(new RealCoordinate(intersect)), 
+): coord(coord), intersect_point(intersect), 
    associated_arc(associated_arc) {}
 
-inline Event::Event(const Event& other) {
-    coord = other.coord;
-    associated_arc = other.associated_arc;
-    if (other.intersect_point) {
-        intersect_point = new RealCoordinate(*other.intersect_point);
-    }
-}
-
-inline Event::~Event() {
-    delete intersect_point;
-}
-
-inline Event& Event::operator=(const Event& other) {
-    if (this == &other) {
-        return *this;
-    }
-    coord = other.coord;
-    associated_arc = other.associated_arc;
-    delete intersect_point;
-    if (other.intersect_point) {
-        intersect_point = new RealCoordinate(*other.intersect_point);
-    } 
-    else {
-        intersect_point = nullptr;
-    }
-    return *this;
-}
-
-inline bool Event::operator<(const Event& other) const {
-    return (
-        coord.x < other.coord.x
-        || (coord.x == other.coord.x && coord.y < other.coord.y)
-    );
-}
-
-inline bool Event::operator>(const Event& other) const {
-    return (
-        coord.x > other.coord.x 
-        || (coord.x == other.coord.x && coord.y > other.coord.y)
-    );
-}
-
-inline bool Event::operator==(const Event& other) const {
-    return coord.x == other.coord.x && coord.y == other.coord.y;
-}
 } // Impl

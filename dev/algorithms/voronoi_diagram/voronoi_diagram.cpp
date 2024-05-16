@@ -284,7 +284,23 @@ Arc* BeachLine::find_intersected_arc(const RealCoordinate& c) {
     //std::cout << "c: (" << c.x << ", " << c.y << ")" << std::endl;
     // TODO: handle case when c.y == y
     //       it is super rare but I've seen it at 100k seeds
-
+    while (true) {
+        if (node->left != nullptr) {
+            y = parabolae_y_intercept(c.x, node->upper->focus, node->focus);
+            if (c.y > y) {
+                node = node->left;
+                continue;
+            } 
+        }
+        if (node->right != nullptr) {
+            y = parabolae_y_intercept(c.x, node->focus, node->lower->focus);
+            if (c.y < y) {
+                node = node->right;
+                continue;
+            }
+        }
+        return node;
+    }/*
     while (true) {
         if (node->left != nullptr) {
             if (node->upper->focus.x > node->focus.x && c.y > node->upper->focus.y) {
@@ -319,7 +335,7 @@ Arc* BeachLine::find_intersected_arc(const RealCoordinate& c) {
             }
         }
         return node;
-    }
+    }*/
 }   
 
 Arc* BeachLine::get_lowest() {

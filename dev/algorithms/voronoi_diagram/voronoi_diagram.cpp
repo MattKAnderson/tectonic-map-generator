@@ -179,12 +179,18 @@ Arc* BeachLine::find_intersected_arc(const RealCoordinate& c) {
                 node = node->left;
                 continue;
             } 
+            else if (c.y == y) {
+                std::cout << "hit special case" << std::endl;
+            }
         }
         if (node->right != nullptr) {
             y = parabolae_y_intercept(c.x, node->focus, node->lower->focus);
             if (c.y < y) {
                 node = node->right;
                 continue;
+            }
+            else if (c.y == y) {
+                std::cout << "hit special case" << std::endl;
             }
         }
         return node;
@@ -892,7 +898,7 @@ std::vector<RegionNode*> FortunesAlgorithm::region_graph_from_regions() {
         nodes.push_back(new RegionNode);
         node_map.insert({&regions[i], nodes.back()});
     }
-    std::cout << "Finished iterating over regions" << std::endl;
+    //std::cout << "Finished iterating over regions" << std::endl;
     for (int i = 0; i < num_seeds; i++) {
         
         RegionNode* this_region = node_map[&regions[i]];

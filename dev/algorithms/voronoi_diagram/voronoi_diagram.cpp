@@ -166,118 +166,6 @@ std::vector<RealCoordinate> VoronoiDiagram::generate_seeds(
 
 namespace Impl {
 
-/*
-void BoundaryRay::clip_to_bbox(
-    double xmin, double xmax, double ymin, double ymax
-) {
-    if (v[0] == nullptr && v[1] == nullptr) {
-        std::cout << "Both were nullptrs... shouldnt happen" << std::endl;
-    }
-    if (v[0] == nullptr) {
-        if (v[1]->x < xmin || v[1]->x > xmax || v[1]->y < ymin || v[1]->y > ymax) {
-            delete v[1];
-            v[1] = nullptr;
-        }
-        else {
-            v[0] = clip_infinite_ray(xmin, ymin, v[1]->x, v[1]->y, ymin, ymax);
-        }
-    }
-    else if (v[1] == nullptr) {
-        if (v[0]->x < xmin || v[0]->x > xmax || v[0]->y < ymin || v[0]->y > ymax) {
-            delete v[0];
-            v[0] = nullptr;
-        }
-        else {
-            v[1] = clip_infinite_ray(xmax, ymax, v[0]->x, v[0]->y, ymin, ymax);        
-        }
-    }
-    else {
-        clip_vertex_to_bbox(v[0], v[1], xmin, xmax, ymin, ymax);
-        if (v[0] == nullptr) {
-            delete v[1];
-            v[1] = nullptr;
-        }
-        else {
-            clip_vertex_to_bbox(v[1], v[0], xmin, xmax, ymin, ymax);
-        }
-    }
-}
-*/
-/*
-RealCoordinate* BoundaryRay::clip_infinite_ray(
-    double x_int, double y_int, double x0, double y0, double ymin, double ymax
-) {
-    if (r1.x == r2.x) {
-        y_int = r1.y;
-    }
-    else if (r1.y == r2.y) {
-        x_int = r1.x;
-    }
-    else {
-        RealCoordinate mp = {0.5 * (r1.x + r2.x), 0.5 * (r1.y + r2.y)};
-        double m = (y0 - mp.y) / (x0 - mp.x);
-        double b = y0 - m * x0;
-        y_int = m * x_int + b;
-        if (y_int < ymin) {
-            y_int = ymin;
-            x_int = (y_int - b) / m;
-        }
-        else if (y_int > ymax) {
-            y_int = ymax;
-            x_int = (y_int - b) / m;
-        }
-    }
-    return new RealCoordinate{x_int, y_int};
-}
-*/
-/*
-void BoundaryRay::clip_vertex_to_bbox(
-    RealCoordinate* v, RealCoordinate* other, double xmin, double xmax, 
-    double ymin, double ymax
-) {
-    double m = (v->y - other->y) / (v->x - other->x);
-    double b = v->y - m * v->x;
-    if (v->x < xmin && other->x > xmin) {
-        double y_int = m * xmin + b;
-        if (y_int >= ymin && y_int <= ymax) {
-            *v = {xmin, y_int};
-            return;
-        }
-    }
-    if (v->x > xmax && other->x < xmax) {
-        double y_int = m * xmax + b;
-        if (y_int >= ymin && y_int <= ymax) {
-            *v = {xmax, y_int};
-            return;
-        }
-    }
-    if (v->y < ymin && other->y > ymin) {
-        double x_int = (ymin - b) / m;
-        if (x_int >= xmin && x_int <= xmax) {
-            *v = {x_int, ymin};
-            return;
-        }
-    }
-    if (v->y > ymax && other->y < ymax) {
-        double x_int = (ymax - b) / m;
-        if (x_int >= xmin && x_int <= xmax) {
-            *v = {x_int, ymax};
-            return;
-        }
-    }
-    if (v->x > xmax || v->x < xmin || v->y > ymax || v->y < ymin) {
-        if (v == this->v[0]) {
-            delete this->v[0];
-            this->v[0] = nullptr;
-        }
-        else {
-            delete this->v[1];
-            this->v[1] = nullptr;
-        }
-    }
-}
-*/
-
 Arc* BeachLine::find_intersected_arc(const RealCoordinate& c) {
     Arc* node = head;
     double y;
@@ -497,7 +385,6 @@ void BeachLine::remove_arc(Arc* arc) {
         else if (arc->parent->left == arc) { arc->parent->left = upper; }
         else { arc->parent->right = upper; }
     }
-    //arc->active = false;
     closed_regions.push_back(arc);
     // TODO: delete_balance(y);
 }
@@ -552,7 +439,6 @@ void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
             }
             split_arc->event_id = event_id;
             event_queue.insert(event_id);
-            //event_queue.push(event_id);
             //auto t2 = std::chrono::high_resolution_clock::now();
             //queue_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count());
         }
@@ -572,7 +458,6 @@ void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
             }
             arc->event_id = event_id;
             event_queue.insert(event_id);
-            //event_queue.push(event_id);
             //auto t2 = std::chrono::high_resolution_clock::now();
             //queue_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count());
         }
@@ -652,10 +537,7 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
                     event_queue.remove(u_arc->event_id);
                 }
                 u_arc->event_id = event_id;
-                //event_queue.insert(event_id);
-                //event_queue.push(event_id);
             //auto t1 = std::chrono::high_resolution_clock::now();
-            //event_queue.push(event_id);
                 event_queue.insert(event_id);
             //auto t2 = std::chrono::high_resolution_clock::now();
             //queue_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count());
@@ -680,7 +562,6 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
                     event_queue.remove(l_arc->event_id);
                 }
                 l_arc->event_id = event_id;
-                //event_queue.push(event_id);
             //auto t1 = std::chrono::high_resolution_clock::now();
                 event_queue.insert(event_id);
             //event_queue.push(event_id);
@@ -713,27 +594,21 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
     this->min = min;
     this->max = max;
     num_seeds = seeds.size();
-    //rays = {};
     if (regions != nullptr) {
         delete[] regions;
     }
     regions = new Region[num_seeds];
     half_edges = {};
     half_edges.reserve(num_seeds * 3 - 6);
-    //rays.reserve(3 * num_seeds);
     event_manager = EventManager();
-    //auto cmp = EventCompare(&event_manager);
-    //event_queue = std::priority_queue<int, std::vector<int>, EventCompare>(cmp);
     event_queue = EventQueue();
     event_queue.set_event_manager(&event_manager);
     int event_id;
     for (const RealCoordinate& seed : seeds) { 
         event_id = event_manager.create(seed);
         event_queue.insert(event_id);
-        //event_queue.emplace(event_id); 
     }
     //event_queue.print_ordered_x();
-    //event_id = event_queue.top(); event_queue.pop();
     event_id = event_queue.consume_next();
     const RealCoordinate& s1 = event_manager.get(event_id).coord;
     regions[next_region_id] = {s1, nullptr};
@@ -745,7 +620,6 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
     while (!event_queue.empty()) {
         
         //auto t1a = std::chrono::high_resolution_clock::now();
-        //event_id = event_queue.top(); event_queue.pop();
         event_id = event_queue.consume_next();
         //auto t2a = std::chrono::high_resolution_clock::now();
         const Event& event = event_manager.get(event_id);
@@ -807,12 +681,6 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
 RealCoordinate clip_infinite_edge(
     HalfEdge* edge, double xmax, double xmin, double ymax, double ymin
 ) {
-    //if (edge->twin->origin == nullptr) {
-    //    std::cout << "Edge was nullptr!" << std::endl;
-    //    if (edge->origin == nullptr) {
-    //        std::cout << "Both were nullptr!" << std::endl;
-    //    }
-    //}
     const auto& [x0, y0] = edge->twin->origin->coord;
     const auto& [rx1, ry1] = edge->region->seed;
     const auto& [rx2, ry2] = edge->twin->region->seed;
@@ -845,28 +713,7 @@ RealCoordinate clip_infinite_edge(
     }
     return {x_int, y_int};
 }
-/*
-struct VertexAndEdge {
-    VertexNode* vertex;
-    HalfEdge* edge;
-};
 
-bool cmp_x_greater(VertexAndEdge* a, VertexAndEdge* b) {
-    return a->vertex->coord.x > b->vertex->coord.x;
-}
-
-bool cmp_x_less(VertexAndEdge* a, VertexAndEdge* b) {
-    return a->vertex->coord.x < b->vertex->coord.x;
-}
-
-bool cmp_y_greater(VertexAndEdge* a, VertexAndEdge* b) {
-    return a->vertex->coord.y > b->vertex->coord.y;
-}
-
-bool cmp_y_less(VertexAndEdge* a, VertexAndEdge* b) {
-    return a->vertex->coord.y < b->vertex->coord.y;
-}
-*/
 bool is_before_on_bbox_exterior(
     const RealCoordinate& a, const RealCoordinate& b, double xmax, double xmin,
     double ymax, double ymin
@@ -1028,9 +875,6 @@ std::vector<VertexNode*> FortunesAlgorithm::consume_vertex_graph() {
     //std::cout << "Consuming vertex graph" << std::endl;
     //std::cout << "Size of regions: " << regions.size() << std::endl;
     for (HalfEdge* half_edge : half_edges) {
-        //if (half_edge->origin == nullptr || half_edge->next->origin == nullptr) {
-        //    continue;
-        //}
         half_edge->origin->connected.push_back(half_edge->twin->origin);
     }
     return std::move(vertices);

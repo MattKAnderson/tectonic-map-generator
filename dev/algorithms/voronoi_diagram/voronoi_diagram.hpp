@@ -187,14 +187,6 @@ private:
     bool compare_event_id(int event_ida, int event_idb);
 };
 
-struct EventCompare {
-    EventManager* em = nullptr;
-    EventCompare() {}
-    EventCompare(EventManager* em): em(em) {}
-    EventCompare& operator=(const EventCompare& other);
-    bool operator()(int id_a, int id_b) const; 
-};
-
 class BeachLine {
 public:
     BeachLine() {}
@@ -276,30 +268,6 @@ private:
         const RealCoordinate& focus
     );
 };
-
-
-/*
-inline Arc::Arc(const RealCoordinate& focus, Region* region):
-    focus(focus), region(region), red(true), active(true),
-    left(nullptr), right(nullptr), parent(nullptr), lower(nullptr),
-    upper(nullptr), upper_edge(nullptr), lower_edge(nullptr) 
-{
-        std::cout << "This constructor was called" << std::endl;
-        if (left != nullptr) {
-            std::cout << "left was not nullptr" << std::endl;
-        }
-}*/
-
-inline EventCompare& EventCompare::operator=(const EventCompare& other) {
-    em = other.em;
-    return *this;
-}
-
-inline bool EventCompare::operator()(int id_a, int id_b) const {
-    const RealCoordinate& ca = em->get(id_a).coord;
-    const RealCoordinate& cb = em->get(id_b).coord;
-    return ca.x > cb.x || (ca.x == cb.x && ca.y > cb.y);
-}
 
 inline BeachLine::~BeachLine() {
     std::vector<Arc*> stack = {head};

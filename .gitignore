@@ -1,0 +1,13 @@
+# all hidden files and folders
+.*
+
+# data files
+*.json
+
+# cmake's build directory
+build
+
+# any executable
+*.exe
+*.out
+*.app

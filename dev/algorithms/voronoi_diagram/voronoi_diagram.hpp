@@ -17,8 +17,8 @@
 struct VertexNode {
     RealCoordinate coord;
     std::vector<VertexNode*> connected;
-    VertexNode() {}
-    VertexNode(const RealCoordinate& coord): coord(coord) {}
+    VertexNode() { connected.reserve(3); }
+    VertexNode(const RealCoordinate& coord): coord(coord) { connected.reserve(3); }
     bool operator==(const VertexNode& other) const { return coord == other.coord; }
 };
 

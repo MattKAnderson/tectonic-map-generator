@@ -174,37 +174,11 @@ Arc* BeachLine::find_intersected_arc(const RealCoordinate& c) {
     //       it is super rare but I've seen it at 100k seeds
     while (true) {
         if (node->left != nullptr) {
-            y = parabolae_y_intercept(c.x, node->upper->focus, node->focus);
-            if (c.y > y) {
-                node = node->left;
-                continue;
-            } 
-            else if (c.y == y) {
-                std::cout << "hit special case" << std::endl;
-            }
-        }
-        if (node->right != nullptr) {
-            y = parabolae_y_intercept(c.x, node->focus, node->lower->focus);
-            if (c.y < y) {
-                node = node->right;
-                continue;
-            }
-            else if (c.y == y) {
-                std::cout << "hit special case" << std::endl;
-            }
-        }
-        return node;
-    }/*
-    while (true) {
-        if (node->left != nullptr) {
-            if (node->upper->focus.x > node->focus.x && c.y > node->upper->focus.y) {
+            if (node->focus.x < node->upper->focus.x && c.y > node->upper->focus.y) {
                 node = node->left;
                 continue;
             }
-            else if (
-                node->upper->focus.x >= node->focus.x 
-                || node->upper->focus.x < node->focus.x && c.y > node->focus.y
-            ) {
+            if (node->focus.x <= node->upper->focus.x || c.y > node->focus.y) {
                 y = parabolae_y_intercept(c.x, node->upper->focus, node->focus);
                 if (c.y > y) {
                     node = node->left;
@@ -217,10 +191,7 @@ Arc* BeachLine::find_intersected_arc(const RealCoordinate& c) {
                 node = node->right;
                 continue;
             }
-            else if (
-                node->focus.x <= node->lower->focus.x
-                || node->focus.x > node->lower->focus.x && c.y < node->upper->focus.y 
-            ) {
+            if (node->focus.x <= node->lower->focus.x || c.y < node->focus.y) {
                 y = parabolae_y_intercept(c.x, node->focus, node->lower->focus);
                 if (c.y < y) {
                     node = node->right;
@@ -229,7 +200,7 @@ Arc* BeachLine::find_intersected_arc(const RealCoordinate& c) {
             }
         }
         return node;
-    }*/
+    }
 }   
 
 Arc* BeachLine::get_lowest() {

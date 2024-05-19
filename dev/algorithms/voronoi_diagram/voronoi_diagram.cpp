@@ -362,13 +362,14 @@ void BeachLine::remove_arc(Arc* arc) {
         else if (arc->parent->left == arc) { arc->parent->left = upper; }
         else { arc->parent->right = upper; }
     }
-    closed_regions.push_back(arc);
+    available_arcs.push_back(arc);
+    //closed_regions.push_back(arc);
     // TODO: delete_balance(y);
 }
 
-void BeachLine::reserve(int n) {
-    closed_regions.reserve(n);
-}
+//void BeachLine::reserve(int n) {
+//    closed_regions.reserve(n);
+//}
 
 Event new_intersection_event(RealCoordinate& intersect, Arc* closing_region) {
     double dist = euclidean_distance(closing_region->focus, intersect);
@@ -379,8 +380,8 @@ Event new_intersection_event(RealCoordinate& intersect, Arc* closing_region) {
 void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
     regions[next_region_id] = {focus, nullptr};
     Arc* arc = beach_line.find_intersected_arc(focus);
-    Arc* new_arc = new Arc{focus, &regions[next_region_id]};
-    Arc* split_arc = new Arc{arc->focus, arc->region};
+    Arc* new_arc = beach_line.new_arc(focus, &regions[next_region_id]); //new Arc{focus, &regions[next_region_id]};
+    Arc* split_arc = beach_line.new_arc(arc->focus, arc->region); //new Arc{arc->focus, arc->region};
     ++next_region_id;
 
     beach_line.insert_arc_above(arc, new_arc);
@@ -577,6 +578,7 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
     regions = new Region[num_seeds];
     half_edges = {};
     half_edges.reserve(num_seeds * 3 - 6);
+    beach_line = BeachLine();
     event_manager = EventManager();
     event_queue = EventQueue();
     event_queue.set_event_manager(&event_manager);
@@ -589,10 +591,10 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
     event_id = event_queue.consume_next();
     const RealCoordinate& s1 = event_manager.get(event_id).coord;
     regions[next_region_id] = {s1, nullptr};
-    beach_line = BeachLine(s1, &regions[next_region_id]);
+    beach_line.set_head(beach_line.new_arc(s1, &regions[next_region_id]));
     ++next_region_id;
     event_manager.remove(event_id);
-    //auto t1 = std::chrono::high_resolution_clock::now();
+    auto t1 = std::chrono::high_resolution_clock::now();
     //std::cout << "About to start main loop" << std::endl;
     while (!event_queue.empty()) {
         
@@ -618,9 +620,9 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
         }
         event_manager.remove(event_id);
     }
-    //auto t2 = std::chrono::high_resolution_clock::now();
-    //double et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
-    //std::cout << "Time spent on main loop: " << et / 1e6 << " ms" << std::endl;
+    auto t2 = std::chrono::high_resolution_clock::now();
+    double et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
+    std::cout << "Time spent on main loop: " << et / 1e6 << " ms" << std::endl;
     //t1 = std::chrono::high_resolution_clock::now();
     bound_DCEL();
     //t2 = std::chrono::high_resolution_clock::now();

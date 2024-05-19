@@ -756,35 +756,31 @@ void FortunesAlgorithm::bound_DCEL() {
         ymax = std::max(ymax, v->coord.y);
     }
 
-    std::list<VertexNode*> exterior;
-    std::unordered_map<VertexNode*, HalfEdge*> node_to_edge_in;
+    std::list<std::pair<RealCoordinate, HalfEdge*>> exterior;
     Arc* lower = beach_line.get_lowest();
     Arc* upper = lower->upper;
     while (upper != nullptr) {
         HalfEdge* edge = upper->lower_edge->origin ? lower->upper_edge : upper->lower_edge;
         RealCoordinate v = clip_infinite_edge(edge, xmax, xmin, ymax, ymin);
-        vertices.push_back(new VertexNode(v));
-        exterior.push_back(vertices.back());
-        edge->origin = vertices.back();
-        node_to_edge_in.insert({vertices.back(), edge->twin});
+        exterior.emplace_back(v, edge); 
         lower = upper;
         upper = upper->upper;
-    }
+    } 
+    exterior_vertices = new VertexNode[exterior.size() + 4];
+    boundary_half_edges = new HalfEdge[exterior.size() * 2 + 8];
+    int next_vertex_id = 0;
+    int next_half_edge_id = 0;
 
     RealCoordinate corners[4] = {{xmin, ymin}, {xmax, ymin}, {xmax, ymax}, {xmin, ymax}};
     int corner_to_place = 0;
     for (auto it = exterior.begin(); it != exterior.end(); ++it) {
         for (int i = corner_to_place; i < 4; i++) {
-            if (corners[i] == (*it)->coord) {
+            if (corners[i] == (*it).first) {
                 ++corner_to_place;
                 break;
             }
-            else if (is_before_on_bbox_exterior(corners[i], (*it)->coord, xmax, xmin, ymax, ymin)) {
-                vertices.push_back(new VertexNode(corners[i]));
-                exterior.insert(it, vertices.back());
-                HalfEdge* dummy_edge = new HalfEdge;
-                dummy_edge->region = node_to_edge_in[(*it)]->twin->region;
-                node_to_edge_in.insert({vertices.back(), dummy_edge});
+            else if (is_before_on_bbox_exterior(corners[i], (*it).first, xmax, xmin, ymax, ymin)) {
+                exterior.insert(it, {corners[i], nullptr});
                 ++corner_to_place;
             }
             else {
@@ -792,58 +788,61 @@ void FortunesAlgorithm::bound_DCEL() {
             }
         }
     }
+    for (int i = corner_to_place; i < 4; i++) {
+        exterior.emplace_back(corners[i], nullptr);
+    }
 
     HalfEdge* prev_edge = nullptr;
     HalfEdge* first_corner_edge = nullptr;
-    HalfEdge* edge_in = nullptr;
-    for (VertexNode* vertex : exterior) {
-        edge_in = node_to_edge_in[vertex];
-        if (edge_in->origin == nullptr) {
-            HalfEdge* new_edge = new HalfEdge{
-                edge_in->region, prev_edge, nullptr, nullptr, vertex
-            };
-            HalfEdge* twin_edge = new HalfEdge{
-                nullptr, nullptr, nullptr, new_edge, nullptr
-            };
+    for (auto [vertex, edge_out] : exterior) {
+        VertexNode* vertex_node = &exterior_vertices[next_vertex_id++];
+        vertex_node->coord = vertex;
+        vertices.push_back(vertex_node);
+        HalfEdge* new_edge = &boundary_half_edges[next_half_edge_id++];
+        HalfEdge* twin_edge = &boundary_half_edges[next_half_edge_id++];
+        if (edge_out == nullptr) {
+            //new_edge->region = nullptr;
+            new_edge->prev = prev_edge;
+            new_edge->origin = vertex_node;
             new_edge->twin = twin_edge;
+            twin_edge->twin = new_edge;
             if (first_corner_edge == nullptr) { first_corner_edge = new_edge; }
-            if (prev_edge) { 
+            if (prev_edge) {
                 prev_edge->next = new_edge;
-                prev_edge->twin->origin = vertex;
+                prev_edge->twin->origin = vertex_node;
             }
             prev_edge = new_edge;
             half_edges.push_back(new_edge);
             half_edges.push_back(twin_edge);
         }
         else {
-            HalfEdge* new_edge = new HalfEdge{
-                edge_in->region, edge_in, nullptr, nullptr, vertex
-            };
-            HalfEdge* twin_edge = new HalfEdge{
-                nullptr, nullptr, nullptr, new_edge, nullptr
-            };
+            edge_out->origin = vertex_node;
+            new_edge->region = edge_out->twin->region;
+            new_edge->prev = edge_out->twin;
+            new_edge->origin = vertex_node;
             new_edge->twin = twin_edge;
+            twin_edge->twin = new_edge;
             if (prev_edge) { 
-                prev_edge->next = edge_in->twin; 
-                prev_edge->twin->origin = vertex;
-                edge_in->twin->prev = prev_edge;    
+                prev_edge->next = edge_out; 
+                prev_edge->twin->origin = vertex_node;
+                edge_out->prev = prev_edge;    
             }
             prev_edge = new_edge;
-            edge_in->next = prev_edge;
+            edge_out->twin->next = prev_edge;
             half_edges.push_back(prev_edge);
             half_edges.push_back(twin_edge);
         }
     }
-    edge_in = node_to_edge_in[*exterior.begin()];
+    HalfEdge* edge_in = exterior.begin()->second->twin;
     if (edge_in->origin == nullptr) {
         first_corner_edge->prev = prev_edge;
         prev_edge->next = first_corner_edge;
-        prev_edge->twin->origin = *exterior.begin();
+        prev_edge->twin->origin = &exterior_vertices[0];
     }
     else {
         HalfEdge* next = edge_in->twin;
         prev_edge->next = next;
-        prev_edge->twin->origin = *exterior.begin();
+        prev_edge->twin->origin = &exterior_vertices[0];
         next->prev = prev_edge;
     }
 }

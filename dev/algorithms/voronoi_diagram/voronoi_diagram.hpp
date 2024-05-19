@@ -17,8 +17,18 @@
 struct VertexNode {
     RealCoordinate coord;
     std::vector<VertexNode*> connected;
+    VertexNode() {}
     VertexNode(const RealCoordinate& coord): coord(coord) {}
     bool operator==(const VertexNode& other) const { return coord == other.coord; }
+};
+
+class VertexGraph {
+public:
+    VertexGraph(VertexNode* graph);
+    VertexNode* get_head();
+    std::vector<VertexNode*> get_vertices(); 
+private:
+    VertexNode* nodes;
 };
 
 struct RegionNode {
@@ -238,6 +248,12 @@ private:
     //std::vector<Impl::Region*> regions;
     std::vector<VertexNode*> vertices;
     std::vector<HalfEdge*> half_edges;
+    HalfEdge* internal_half_edges = nullptr;
+    HalfEdge* boundary_half_edges = nullptr;
+    int next_half_edge_index = 0;
+    VertexNode* internal_vertices = nullptr;
+    VertexNode* exterior_vertices = nullptr;
+    int next_vertex_index = 0;
     //std::priority_queue<int, std::vector<int>, EventCompare> event_queue;
     EventQueue event_queue;
     BeachLine beach_line;
@@ -253,7 +269,8 @@ private:
     //std::vector<double> site_new_int_times;
     //std::vector<double> int_event_times;
     //std::vector<double> queue_times;
-
+    HalfEdge* new_interior_edge(Region* region);
+    VertexNode* new_interior_vertex(const RealCoordinate& c);
     void site_event(const RealCoordinate& focus);
     void intersection_event(const Event& event);
     void bound_DCEL();
@@ -341,5 +358,19 @@ inline Event::Event(
     Arc* associated_arc
 ): coord(coord), intersect_point(intersect), 
    associated_arc(associated_arc) {}
+
+inline HalfEdge* FortunesAlgorithm::new_interior_edge(Region* region) {
+    HalfEdge* edge = &internal_half_edges[next_half_edge_index++];
+    edge->region = region;
+    return edge;
+}
+
+inline VertexNode* FortunesAlgorithm::new_interior_vertex(
+    const RealCoordinate& c
+) {
+    VertexNode* vertex = &internal_vertices[next_vertex_index++];
+    vertex->coord = c;
+    return vertex;
+}
 
 } // Impl

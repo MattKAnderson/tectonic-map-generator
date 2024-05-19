@@ -387,12 +387,12 @@ void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
     beach_line.insert_arc_above(arc, new_arc);
     beach_line.insert_arc_above(new_arc, split_arc);
 
-    new_arc->upper_edge = new HalfEdge{new_arc->region};
+    new_arc->upper_edge = new_interior_edge(new_arc->region); //new HalfEdge{new_arc->region};
     half_edges.push_back(new_arc->upper_edge);
     new_arc->lower_edge = new_arc->upper_edge;
     new_arc->region->an_edge = new_arc->upper_edge;
     split_arc->upper_edge = arc->upper_edge;
-    arc->upper_edge = new HalfEdge{arc->region};
+    arc->upper_edge = new_interior_edge(arc->region); //new HalfEdge{arc->region};
     half_edges.push_back(arc->upper_edge);
     split_arc->lower_edge = arc->upper_edge;
     arc->upper_edge->twin = new_arc->upper_edge;
@@ -469,15 +469,15 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
     Arc* u_arc = arc->upper;
     Arc* l_arc = arc->lower;
 
-    VertexNode* new_intersect = new VertexNode(intersect);
+    //VertexNode* new_intersect = new VertexNode(intersect);
      
-    vertices.push_back(new VertexNode(intersect));
+    vertices.push_back(new_interior_vertex(intersect));
 
     arc->upper_edge->origin = vertices.back();
     arc->upper_edge->prev = arc->lower_edge;
     arc->lower_edge->next = arc->upper_edge;
-    HalfEdge* new_upper_half_edge = new HalfEdge{u_arc->region};
-    HalfEdge* new_lower_half_edge = new HalfEdge{l_arc->region};
+    HalfEdge* new_upper_half_edge = new_interior_edge(u_arc->region); //new HalfEdge{u_arc->region};
+    HalfEdge* new_lower_half_edge = new_interior_edge(l_arc->region); //new HalfEdge{l_arc->region};
     half_edges.push_back(new_upper_half_edge);
     half_edges.push_back(new_lower_half_edge);
     new_upper_half_edge->twin = new_lower_half_edge;
@@ -578,6 +578,22 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
     regions = new Region[num_seeds];
     half_edges = {};
     half_edges.reserve(num_seeds * 3 - 6);
+    if (boundary_half_edges != nullptr) {
+        delete[] boundary_half_edges;
+    }
+    boundary_half_edges = nullptr;
+    if (internal_half_edges != nullptr) {
+        delete[] internal_half_edges;
+    }
+    internal_half_edges = new HalfEdge[6 * (num_seeds) - 12];
+    if (internal_vertices != nullptr) {
+        delete[] internal_vertices;
+    }
+    internal_vertices = new VertexNode[2 * num_seeds - 5];
+    if (exterior_vertices != nullptr) {
+        delete[] exterior_vertices;
+    }
+    exterior_vertices = nullptr;
     beach_line = BeachLine();
     event_manager = EventManager();
     event_queue = EventQueue();

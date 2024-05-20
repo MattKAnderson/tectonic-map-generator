@@ -4,8 +4,8 @@ class LineClipper {
 public:
     LineClipper(double min, double max) {}
     bool CohenSutherlandClip(const RealCoordinate& a, const RealCoordinate& b);
-    RealCoordinate get_clipped_a();
-    RealCoordinate get_clipped_b();
+    RealCoordinate get_clipped_a() { return a_; };
+    RealCoordinate get_clipped_b() { return b_; };
 private:
     double min_;
     double max_;

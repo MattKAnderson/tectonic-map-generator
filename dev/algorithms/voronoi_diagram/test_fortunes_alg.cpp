@@ -42,10 +42,14 @@ std::vector<std::pair<RealCoordinate, RealCoordinate>> graph_to_line_segments(
 
 int main() {
 
-    int seed = 990;
+    /*
+     * TODO: look at bound() case for seed = 12490, nseeds = 100. Looked like the lower
+     *       left and lower right corners were out of position.
+     */
+    int seed = 90; 
     int xsize = 4096;
     int ysize = xsize;
-    int nseeds = 10000;
+    int nseeds = 100;
 
     VoronoiDiagram voronoi_diagram(seed);
     auto t1 = std::chrono::high_resolution_clock::now();
@@ -57,7 +61,7 @@ int main() {
 
     std::vector<RealCoordinate> seeds = voronoi_diagram.get_seeds();
     VertexGraph vgraph = voronoi_diagram.get_vertex_graph();
-    RegionGraph rgraph = voronoi_diagram.get_region_graph();
+    //RegionGraph rgraph = voronoi_diagram.get_region_graph();
     std::cout << "Finished getting vertices and region graphs" << std::endl;
     typedef std::vector<std::pair<RealCoordinate, RealCoordinate>> ls_vector;
     ls_vector vertex_line_segments = graph_to_line_segments(vgraph.get_vertices());

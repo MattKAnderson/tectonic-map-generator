@@ -40,14 +40,12 @@ std::vector<std::pair<RealCoordinate, RealCoordinate>> graph_to_line_segments(
     return line_segments;
 }
 
-void check_vertex_graph(std::vector<VertexNode*>& graph);
-
 int main() {
 
-    int seed = 182310;
+    int seed = 990;
     int xsize = 4096;
     int ysize = xsize;
-    int nseeds = 10000000;
+    int nseeds = 10000;
 
     VoronoiDiagram voronoi_diagram(seed);
     auto t1 = std::chrono::high_resolution_clock::now();
@@ -58,12 +56,11 @@ int main() {
     std::cout << "Took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count() / 1000000.0 << " ms\n";
 
     std::vector<RealCoordinate> seeds = voronoi_diagram.get_seeds();
-    std::vector<VertexNode*> vgraph = voronoi_diagram.consume_vertices();
-    std::vector<RegionNode*> rgraph = voronoi_diagram.consume_region_graph();
+    VertexGraph vgraph = voronoi_diagram.get_vertex_graph();
+    RegionGraph rgraph = voronoi_diagram.get_region_graph();
     std::cout << "Finished getting vertices and region graphs" << std::endl;
-    check_vertex_graph(vgraph);
     typedef std::vector<std::pair<RealCoordinate, RealCoordinate>> ls_vector;
-    ls_vector vertex_line_segments = graph_to_line_segments(vgraph);
+    ls_vector vertex_line_segments = graph_to_line_segments(vgraph.get_vertices());
     //ls_vector region_adjacency_segments = graph_to_line_segments(rgraph);
     
     std::cout << "Writing results" << std::endl;
@@ -73,36 +70,4 @@ int main() {
     //);
     vector_output("diagram_seeds.json", seeds);
     std::cout << "Done" << std::endl;
-}
-
-void check_vertex_graph(std::vector<VertexNode*>& graph) {
-
-    std::vector<VertexNode*> vertices_with_improper_edge_counts;
-
-    double xmin = std::numeric_limits<double>::max();
-    double xmax = std::numeric_limits<double>::min();
-    double ymin = std::numeric_limits<double>::max();
-    double ymax = std::numeric_limits<double>::min();
-    for (VertexNode* vn : graph) {
-        xmin = std::min(xmin, vn->coord.x);
-        xmax = std::max(xmax, vn->coord.y);
-        ymin = std::min(ymin, vn->coord.y);
-        ymax = std::max(ymax, vn->coord.y);
-    }
-    for (VertexNode* vn : graph) {
-        RealCoordinate& c = vn->coord;
-        if (c.x == xmin || c.x == xmax || c.y == ymin || c.y == ymax) {
-            if (vn->connected.size() != 2 && vn->connected.size() != 3) {
-                vertices_with_improper_edge_counts.push_back(vn);
-            }
-        }
-        else if (vn->connected.size() != 3) {
-            vertices_with_improper_edge_counts.push_back(vn);
-        }
-    }
-    int violation_count = vertices_with_improper_edge_counts.size();
-    if (violation_count > 0) {
-        std::cout << "WARNING: vertices with improper edge counts detected!\n"
-                  << "         Number of violations " << violation_count << "\n";
-    }
 }

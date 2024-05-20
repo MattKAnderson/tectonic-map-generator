@@ -1,120 +1,39 @@
 #include <voronoi_diagram.hpp>
 
-std::vector<RealCoordinate> compute_voronoi_cell_centroids(
-    std::vector<std::vector<int>>& diagram, int ncells
-) {
-    std::vector<int> pixel_counts(ncells, 0);
-    std::vector<int> x_sums(ncells, 0);
-    std::vector<int> y_sums(ncells, 0);
-    for (int i = 0; i < diagram.size(); ++i) {
-        for (int j = 0; j < diagram[i].size(); ++j) {
-            int cell = diagram[i][j];
-            x_sums[cell] += i;
-            y_sums[cell] += j;
-            ++pixel_counts[cell];
-        }
-    }
-    std::vector<RealCoordinate> centroids;
-    centroids.reserve(ncells);
-    for (int i = 0; i < ncells; i++) {
-        if (pixel_counts[i] == 0) {
-            continue;
-        }
-        centroids.emplace_back(
-            static_cast<double>(x_sums[i]) / pixel_counts[i],
-            static_cast<double>(y_sums[i]) / pixel_counts[i]
-        );
-    }
-    return centroids;
+VertexNode* VertexGraph::get_head() { 
+    if (refs.size() == 0) { return nullptr; }
+    else { return refs[0]; }
 }
 
-int find_closest_id(RealCoordinate point, std::vector<RealCoordinate>& points) {
-    int closest_id = 0;
-    double shortest_dist = euclidean_distance(points[0], point);
-    for (int i = 1; i < points.size(); i++) {
-        double dist = euclidean_distance(points[i], point);
-        if (dist < shortest_dist) {
-            closest_id = i;
-            shortest_dist = dist;
-        }
-    }
-    return closest_id;
+std::vector<VertexNode*> VertexGraph::get_vertices() {
+    return refs;
+}
+
+RegionNode* RegionGraph::get_head() {
+    if (refs.size() == 0) { return nullptr; }
+    else { return refs[0]; }
+}
+
+std::vector<RegionNode*> RegionGraph::get_regions() {
+    return refs;
 }
 
 VoronoiDiagram::VoronoiDiagram(int seed) {
     rng = std::mt19937_64(seed);
+    generator = new Impl::FortunesAlgorithm;
 }
 
 void VoronoiDiagram::generate(int xsize, int ysize, int nseeds) {
-    nregions = nseeds;
-    
-    //auto t1 = std::chrono::high_resolution_clock::now();
     seeds = generate_seeds(nseeds, xsize, ysize);
-    //auto t2 = std::chrono::high_resolution_clock::now();
-    //double et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
-    //std::cout << "Time spent generating seeds: " << et / 1e6 << " ms\n";
-    //grid_algorithm(seeds, xsize, ysize);
-    
-    Impl::FortunesAlgorithm generator;
-    //auto t1 = std::chrono::high_resolution_clock::now();
-    generator.compute(seeds, 0.0, xsize);
-    //auto t2 = std::chrono::high_resolution_clock::now();
-    //double et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
-    //std::cout << "Time spent computing: " << et / 1e6 << " ms\n";
-    //t1 = std::chrono::high_resolution_clock::now();
-    vertices = generator.consume_vertex_graph();
-    //t2 = std::chrono::high_resolution_clock::now();
-    //et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
-    //std::cout << "Time spent creating vertex graph: " << et / 1e6 << " ms\n";
-    //auto t1 = std::chrono::high_resolution_clock::now();
-    regions = generator.consume_region_graph();
-    //auto t2 = std::chrono::high_resolution_clock::now();
-    //double et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
-    //std::cout << "Time spent creating region graph: " << et / 1e6 << " ms\n";
+    generate_from_seeds(seeds, xsize, ysize);
 }
 
 void VoronoiDiagram::generate_from_seeds(
     std::vector<RealCoordinate>& seeds, int xsize, int ysize
 ) {
     nregions = seeds.size();
-    //grid_algorithm(seeds, xsize, ysize); 
     this->seeds = seeds;
-    Impl::FortunesAlgorithm generator;
-    generator.compute(seeds, 0.0, xsize);
-    //std::cout << "about to produce vertex graph" << std::endl;
-    vertices = generator.consume_vertex_graph();
-    regions = generator.consume_region_graph();
-    
-}
-
-void VoronoiDiagram::lloyd_iteration() {
-    std::vector<RealCoordinate> new_seeds;
-    new_seeds = compute_voronoi_cell_centroids(diagram, nregions);
-    grid_algorithm(new_seeds, diagram.size(), diagram[0].size());
-}
-
-void VoronoiDiagram::nesting_iteration(int nseeds) {
-    std::vector<RealCoordinate> seeds = generate_seeds(
-        nseeds, diagram.size(), diagram[0].size()
-    );
-    nesting_iteration_from_seeds(seeds);
-}
-
-void VoronoiDiagram::nesting_iteration_from_seeds(
-    std::vector<RealCoordinate>& seeds
-) {
-    std::vector<RealCoordinate> centroids;
-    centroids = compute_voronoi_cell_centroids(diagram, nregions);
-    std::vector<int> region_id_map(centroids.size(), -1);
-    for (int i = 0; i < centroids.size(); i++) {
-        region_id_map[i] = find_closest_id(centroids[i], seeds);
-    }
-    for (int i = 0; i < diagram.size(); i++) {
-        for (int j = 0; j < diagram[0].size(); j++) {
-            diagram[i][j] = region_id_map[diagram[i][j]];
-        }
-    }
-    nregions = seeds.size();
+    generator->compute(seeds, 0.0, xsize);
 }
 
 std::vector<std::vector<int>> VoronoiDiagram::get_diagram() {
@@ -125,30 +44,20 @@ std::vector<RealCoordinate> VoronoiDiagram::get_seeds() {
     return seeds;
 }
 
+VertexGraph VoronoiDiagram::get_vertex_graph() {
+    return generator->get_vertex_graph();
+}
+
+RegionGraph VoronoiDiagram::get_region_graph() {
+    return generator->get_region_graph();
+}
+
 std::vector<VertexNode*> VoronoiDiagram::consume_vertices() {
     return std::move(vertices);
 }
 
 std::vector<RegionNode*> VoronoiDiagram::consume_region_graph() {
     return std::move(regions);
-}
-
-void VoronoiDiagram::grid_algorithm(
-    std::vector<RealCoordinate>& seeds, int xsize, int ysize
-) {
-    for (int i = 0; i < seeds.size(); ++i) {
-        diagram[seeds[i].x][seeds[i].y] = i;
-    }
-    for (int i = 0; i < xsize; i++) {
-        for (int j = 0; j < ysize; j++) {
-            if (diagram[i][j] == -1) {
-                diagram[i][j] = find_closest_id(
-                    {static_cast<double>(i), static_cast<double>(j)}, seeds
-                );
-            }
-        }
-    }
-    
 }
 
 std::vector<RealCoordinate> VoronoiDiagram::generate_seeds(
@@ -292,26 +201,6 @@ void BeachLine::flip_colors(Arc* arc) {
 bool BeachLine::is_red(Arc* arc) {
     return arc != nullptr && arc->red;
 }
-
-/*
-void BeachLine::insert_arc_below(Arc* arc, Arc* new_arc) {
-    if (arc->right == nullptr) {
-        arc->right = new_arc;
-        new_arc->parent = arc;
-        if (arc->lower != nullptr) {
-            arc->lower->upper = new_arc;
-        }
-    }
-    else {
-        arc->lower->left = new_arc;
-        new_arc->parent = arc->lower;
-        arc->lower->upper = new_arc;
-    }
-    new_arc->lower = arc->lower;
-    new_arc->upper = arc;
-    arc->lower = new_arc;
-    // TODO: balance op
-}*/
 
 void BeachLine::remove_arc(Arc* arc) {
     // Handle the doubly linked list portion of this
@@ -464,7 +353,7 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
      
     vertices.push_back(new_interior_vertex(intersect));
 
-    arc->upper_edge->origin = vertices.back();
+    arc->upper_edge->origin_id = vertices.size() - 1;
     arc->upper_edge->prev = arc->lower_edge;
     arc->lower_edge->next = arc->upper_edge;
     HalfEdge* new_upper_half_edge = new_interior_edge(u_arc->region); 
@@ -472,14 +361,14 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
     half_edges.push_back(new_upper_half_edge);
     half_edges.push_back(new_lower_half_edge);
     new_upper_half_edge->twin = new_lower_half_edge;
-    new_upper_half_edge->origin = vertices.back();
+    new_upper_half_edge->origin_id = vertices.size() - 1;
     new_upper_half_edge->prev = u_arc->lower_edge;
     u_arc->lower_edge->next = new_upper_half_edge;
     u_arc->lower_edge = new_upper_half_edge;
     new_lower_half_edge->twin = new_upper_half_edge;
     new_lower_half_edge->next = l_arc->upper_edge;
     l_arc->upper_edge->prev = new_lower_half_edge;
-    l_arc->upper_edge->origin = vertices.back();
+    l_arc->upper_edge->origin_id = vertices.size() - 1;
     l_arc->upper_edge = new_lower_half_edge;
 
     beach_line.remove_arc(arc);
@@ -611,10 +500,10 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
     bound_DCEL();
 }
 
-RealCoordinate clip_infinite_edge(
+RealCoordinate FortunesAlgorithm::clip_infinite_edge(
     HalfEdge* edge, double xmax, double xmin, double ymax, double ymin
 ) {
-    const auto& [x0, y0] = edge->twin->origin->coord;
+    const auto& [x0, y0] = vertices[edge->twin->origin_id]->coord;
     const auto& [rx1, ry1] = edge->region->seed;
     const auto& [rx2, ry2] = edge->twin->region->seed;
     double y_int, x_int;
@@ -698,7 +587,7 @@ void FortunesAlgorithm::bound_DCEL() {
     Arc* lower = beach_line.get_lowest();
     Arc* upper = lower->upper;
     while (upper != nullptr) {
-        HalfEdge* edge = upper->lower_edge->origin ? lower->upper_edge : upper->lower_edge;
+        HalfEdge* edge = upper->lower_edge->origin_id != -1 ? lower->upper_edge : upper->lower_edge;
         RealCoordinate v = clip_infinite_edge(edge, xmax, xmin, ymax, ymin);
         exterior.emplace_back(v, edge); 
         lower = upper;
@@ -732,6 +621,7 @@ void FortunesAlgorithm::bound_DCEL() {
 
     HalfEdge* prev_edge = nullptr;
     HalfEdge* first_corner_edge = nullptr;
+    int first_origin_id = -1;
     for (auto [vertex, edge_out] : exterior) {
         VertexNode* vertex_node = &exterior_vertices[next_vertex_id++];
         vertex_node->coord = vertex;
@@ -741,28 +631,31 @@ void FortunesAlgorithm::bound_DCEL() {
         if (edge_out == nullptr) {
             //new_edge->region = nullptr;
             new_edge->prev = prev_edge;
-            new_edge->origin = vertex_node;
+            new_edge->origin_id = vertices.size() - 1;
             new_edge->twin = twin_edge;
             twin_edge->twin = new_edge;
-            if (first_corner_edge == nullptr) { first_corner_edge = new_edge; }
+            if (first_corner_edge == nullptr) { 
+                first_corner_edge = new_edge; 
+                first_origin_id = vertices.size() - 1;    
+            }
             if (prev_edge) {
                 prev_edge->next = new_edge;
-                prev_edge->twin->origin = vertex_node;
+                prev_edge->twin->origin_id = vertices.size() - 1;
             }
             prev_edge = new_edge;
             half_edges.push_back(new_edge);
             half_edges.push_back(twin_edge);
         }
         else {
-            edge_out->origin = vertex_node;
+            edge_out->origin_id = vertices.size() - 1;
             new_edge->region = edge_out->twin->region;
             new_edge->prev = edge_out->twin;
-            new_edge->origin = vertex_node;
+            new_edge->origin_id = vertices.size() - 1;
             new_edge->twin = twin_edge;
             twin_edge->twin = new_edge;
             if (prev_edge) { 
                 prev_edge->next = edge_out; 
-                prev_edge->twin->origin = vertex_node;
+                prev_edge->twin->origin_id = vertices.size() - 1;
                 edge_out->prev = prev_edge;    
             }
             prev_edge = new_edge;
@@ -771,16 +664,16 @@ void FortunesAlgorithm::bound_DCEL() {
             half_edges.push_back(twin_edge);
         }
     }
-    HalfEdge* edge_in = exterior.begin()->second->twin;
-    if (edge_in->origin == nullptr) {
+    HalfEdge* edge_out = exterior.begin()->second;
+    if (edge_out == nullptr) {
         first_corner_edge->prev = prev_edge;
         prev_edge->next = first_corner_edge;
-        prev_edge->twin->origin = &exterior_vertices[0];
+        prev_edge->twin->origin_id = first_origin_id;
     }
     else {
-        HalfEdge* next = edge_in->twin;
+        HalfEdge* next = edge_out;
         prev_edge->next = next;
-        prev_edge->twin->origin = &exterior_vertices[0];
+        prev_edge->twin->origin_id = first_origin_id;
         next->prev = prev_edge;
     }
 }
@@ -793,6 +686,7 @@ bool inside_bbox(const RealCoordinate& c, double min, double max) {
     return c.x >= min && c.x <= max && c.y >= min && c.y <= max;
 }
 
+/*
 void FortunesAlgorithm::clip_to_bbox(double min, double max) {
 
     for (auto* edge : half_edges) {
@@ -800,21 +694,25 @@ void FortunesAlgorithm::clip_to_bbox(double min, double max) {
         if (inside_bbox(v, min, max)) { continue; }
 
     }
-
 }
+*/
 
-std::vector<VertexNode*> FortunesAlgorithm::consume_vertex_graph() {
-    for (HalfEdge* half_edge : half_edges) {
-        half_edge->origin->connected.push_back(half_edge->twin->origin);
+VertexGraph FortunesAlgorithm::get_vertex_graph() {
+    std::vector<VertexNode*> vertex_refs; vertex_refs.reserve(vertices.size());
+    VertexNode* new_vertices = new VertexNode[vertices.size()];
+    for (int i = 0; i < vertices.size(); i++) {
+        vertex_refs.push_back(&new_vertices[i]);
+        new_vertices[i].coord = vertices[i]->coord;
     }
-    return std::move(vertices);
+    for (HalfEdge* half_edge : half_edges) {
+        new_vertices[half_edge->origin_id].connected.push_back(
+            &new_vertices[half_edge->twin->origin_id]
+        );
+    }
+    return VertexGraph(new_vertices, vertex_refs);
 }
 
-std::vector<RegionNode*> FortunesAlgorithm::consume_region_graph() {
-    return std::move(region_graph_from_regions());
-}
-
-std::vector<RegionNode*> FortunesAlgorithm::region_graph_from_regions() {
+RegionGraph FortunesAlgorithm::get_region_graph() {
     std::vector<RegionNode*> nodes; nodes.reserve(num_seeds);
     RegionNode* nodes_array = new RegionNode[num_seeds];
     int next_id = 0;
@@ -829,15 +727,15 @@ std::vector<RegionNode*> FortunesAlgorithm::region_graph_from_regions() {
         RegionNode* this_region = node_map[&regions[i]];
         HalfEdge* edge_ptr = regions[i].an_edge;
         while (edge_ptr->next != regions[i].an_edge) {
-            this_region->vertices.push_back(edge_ptr->origin->coord);
+            this_region->vertices.push_back(vertices[edge_ptr->origin_id]->coord);
             if (edge_ptr->twin->region != nullptr) {
                 this_region->adjacent.push_back(node_map[edge_ptr->twin->region]);
             }
             edge_ptr = edge_ptr->next;
         }
-        this_region->vertices.push_back(edge_ptr->origin->coord);
+        this_region->vertices.push_back(vertices[edge_ptr->origin_id]->coord);
     }
-    return std::move(nodes);
+    return RegionGraph(nodes_array, nodes);
 }
 
 const Event& EventManager::get(int id) {

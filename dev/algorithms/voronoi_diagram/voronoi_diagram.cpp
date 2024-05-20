@@ -431,12 +431,7 @@ bool compare_y_greater(const RealCoordinate& a, const RealCoordinate& b) {
     return a.y > b.y;
 }
 
-
-void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, double max) {
-    using namespace Impl; 
-    this->min = min;
-    this->max = max;
-    num_seeds = seeds.size();
+void FortunesAlgorithm::initialize() {
     if (regions != nullptr) {
         delete[] regions;
     }
@@ -465,6 +460,17 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
     event_manager = EventManager();
     event_queue = EventQueue();
     event_queue.set_event_manager(&event_manager);
+    next_half_edge_index = 0;
+    next_vertex_index = 0;
+    next_region_id = 0;
+}
+
+void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, double max) {
+    this->min = min;
+    this->max = max;
+    num_seeds = seeds.size();
+    initialize();
+
     int event_id;
     for (const RealCoordinate& seed : seeds) { 
         event_id = event_manager.create(seed);

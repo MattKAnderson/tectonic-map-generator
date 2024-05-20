@@ -244,6 +244,7 @@ private:
 
     HalfEdge* new_interior_edge(Region* region);
     VertexNode* new_interior_vertex(const RealCoordinate& c);
+    void initialize();
     void site_event(const RealCoordinate& focus);
     void intersection_event(const Event& event);
     void bound_DCEL();

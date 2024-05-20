@@ -222,20 +222,25 @@ public:
     FortunesAlgorithm() {}
     ~FortunesAlgorithm();
     void compute(std::vector<RealCoordinate>& seeds, double min, double max);
+    void crop(double min, double max);
+    void bound();
     VertexGraph get_vertex_graph();
     RegionGraph get_region_graph();
 private:
     int num_seeds;
-    double min;
-    double max;
+    //double min;
+    //double max;
     EventManager event_manager;
     std::vector<VertexNode*> vertices;
     std::vector<HalfEdge*> half_edges;
+    // std::vector<Region*> region_refs; TODO use this
     HalfEdge* internal_half_edges = nullptr;
-    HalfEdge* boundary_half_edges = nullptr;
+    //HalfEdge* boundary_half_edges = nullptr;
     int next_half_edge_index = 0;
     VertexNode* internal_vertices = nullptr;
-    VertexNode* exterior_vertices = nullptr;
+    //VertexNode* exterior_vertices = nullptr;
+    std::vector<HalfEdge*> additional_half_edges;
+    std::vector<VertexNode*> additional_vertices;
     int next_vertex_index = 0;
     EventQueue event_queue;
     BeachLine beach_line;
@@ -248,6 +253,11 @@ private:
     void site_event(const RealCoordinate& focus);
     void intersection_event(const Event& event);
     void bound_DCEL();
+    void crop_DCEL();
+    void connect_DCEL_exterior(
+        std::list<std::pair<RealCoordinate, HalfEdge*>>& exterior,
+        double xmax, double xmin, double ymax, double ymin
+    );
     RealCoordinate clip_infinite_edge(
         HalfEdge*, double xmax, double xmin, double ymax, double ymin
     );
@@ -309,10 +319,14 @@ inline Event::Event(
 
 inline FortunesAlgorithm::~FortunesAlgorithm() {
     if (internal_half_edges) { delete[] internal_half_edges; }
-    if (boundary_half_edges) { delete[] boundary_half_edges; }
     if (internal_vertices) { delete[] internal_vertices; }
-    if (exterior_vertices) { delete[] exterior_vertices; }
     if (regions) { delete[] regions; }
+    for (VertexNode* vertices : additional_vertices) {
+        delete[] vertices;
+    }
+    for (HalfEdge* edges : additional_half_edges) {
+        delete[] edges;
+    }
 }
 
 inline HalfEdge* FortunesAlgorithm::new_interior_edge(Region* region) {

@@ -52,14 +52,6 @@ RegionGraph VoronoiDiagram::get_region_graph() {
     return generator->get_region_graph();
 }
 
-std::vector<VertexNode*> VoronoiDiagram::consume_vertices() {
-    return std::move(vertices);
-}
-
-std::vector<RegionNode*> VoronoiDiagram::consume_region_graph() {
-    return std::move(regions);
-}
-
 std::vector<RealCoordinate> VoronoiDiagram::generate_seeds(
     int nseeds, int xsize, int ysize
 ) {

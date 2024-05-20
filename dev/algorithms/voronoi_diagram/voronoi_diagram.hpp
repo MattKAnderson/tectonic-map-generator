@@ -75,16 +75,12 @@ public:
     std::vector<RealCoordinate> get_seeds();
     VertexGraph get_vertex_graph();
     RegionGraph get_region_graph();
-    std::vector<VertexNode*> consume_vertices();
-    std::vector<RegionNode*> consume_region_graph();
 
 private:
     int nregions;
     std::mt19937_64 rng;
     std::vector<std::vector<int>> diagram;
     std::vector<RealCoordinate> seeds;
-    std::vector<VertexNode*> vertices;
-    std::vector<RegionNode*> regions;
     Impl::FortunesAlgorithm* generator;
 
     std::vector<RealCoordinate> generate_seeds(

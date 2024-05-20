@@ -220,7 +220,7 @@ private:
 class FortunesAlgorithm {
 public:
     FortunesAlgorithm() {}
-    //TODO ~FortunesAlgorithm();
+    ~FortunesAlgorithm();
     void compute(std::vector<RealCoordinate>& seeds, double min, double max);
     VertexGraph get_vertex_graph();
     RegionGraph get_region_graph();
@@ -306,6 +306,14 @@ inline Event::Event(
 ): coord(coord), intersect_point(intersect), 
    associated_arc(associated_arc) {}
 
+inline FortunesAlgorithm::~FortunesAlgorithm() {
+    if (internal_half_edges) { delete[] internal_half_edges; }
+    if (boundary_half_edges) { delete[] boundary_half_edges; }
+    if (internal_vertices) { delete[] internal_vertices; }
+    if (exterior_vertices) { delete[] exterior_vertices; }
+    if (regions) { delete[] regions; }
+}
+
 inline HalfEdge* FortunesAlgorithm::new_interior_edge(Region* region) {
     HalfEdge* edge = &internal_half_edges[next_half_edge_index++];
     edge->region = region;
@@ -319,4 +327,5 @@ inline VertexNode* FortunesAlgorithm::new_interior_vertex(
     vertex->coord = c;
     return vertex;
 }
+
 } // Impl

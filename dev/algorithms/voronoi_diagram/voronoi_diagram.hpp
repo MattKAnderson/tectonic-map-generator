@@ -244,8 +244,6 @@ private:
     double min;
     double max;
     EventManager event_manager;
-    //std::vector<Impl::BoundaryRay*> rays;
-    //std::vector<Impl::Region*> regions;
     std::vector<VertexNode*> vertices;
     std::vector<HalfEdge*> half_edges;
     HalfEdge* internal_half_edges = nullptr;
@@ -254,31 +252,17 @@ private:
     VertexNode* internal_vertices = nullptr;
     VertexNode* exterior_vertices = nullptr;
     int next_vertex_index = 0;
-    //std::priority_queue<int, std::vector<int>, EventCompare> event_queue;
     EventQueue event_queue;
     BeachLine beach_line;
     Region* regions = nullptr;
     int next_region_id = 0;
 
-    //int op_counter = 0;
-    //std::vector<double> find_arc_times;
-    //std::vector<double> insert_arc_times;
-    //std::vector<double> delete_arc_times;
-    //std::vector<double> new_allocation_times;
-    //std::vector<double> site_event_times;
-    //std::vector<double> site_new_int_times;
-    //std::vector<double> int_event_times;
-    //std::vector<double> queue_times;
     HalfEdge* new_interior_edge(Region* region);
     VertexNode* new_interior_vertex(const RealCoordinate& c);
     void site_event(const RealCoordinate& focus);
     void intersection_event(const Event& event);
     void bound_DCEL();
     void clip_to_bbox(double min, double max);
-    void flush_beachline();
-    void add_vertices_for_bounds_corners();
-    void connect_vertices_on_bounds();
-    bool compare_bounds_vertices(VertexNode* va, VertexNode* vb);
     std::vector<RegionNode*> region_graph_from_regions();
 
     std::vector<RealCoordinate> order_region_vertices(

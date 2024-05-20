@@ -56,16 +56,20 @@ void VoronoiDiagram::generate(int xsize, int ysize, int nseeds) {
     //grid_algorithm(seeds, xsize, ysize);
     
     Impl::FortunesAlgorithm generator;
+    //auto t1 = std::chrono::high_resolution_clock::now();
     generator.compute(seeds, 0.0, xsize);
+    //auto t2 = std::chrono::high_resolution_clock::now();
+    //double et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+    //std::cout << "Time spent computing: " << et / 1e6 << " ms\n";
     //t1 = std::chrono::high_resolution_clock::now();
     vertices = generator.consume_vertex_graph();
     //t2 = std::chrono::high_resolution_clock::now();
     //et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
     //std::cout << "Time spent creating vertex graph: " << et / 1e6 << " ms\n";
-    //t1 = std::chrono::high_resolution_clock::now();
+    //auto t1 = std::chrono::high_resolution_clock::now();
     regions = generator.consume_region_graph();
-    //t2 = std::chrono::high_resolution_clock::now();
-    //et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+    //auto t2 = std::chrono::high_resolution_clock::now();
+    //double et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
     //std::cout << "Time spent creating region graph: " << et / 1e6 << " ms\n";
 }
 
@@ -363,13 +367,8 @@ void BeachLine::remove_arc(Arc* arc) {
         else { arc->parent->right = upper; }
     }
     available_arcs.push_back(arc);
-    //closed_regions.push_back(arc);
     // TODO: delete_balance(y);
 }
-
-//void BeachLine::reserve(int n) {
-//    closed_regions.reserve(n);
-//}
 
 Event new_intersection_event(RealCoordinate& intersect, Arc* closing_region) {
     double dist = euclidean_distance(closing_region->focus, intersect);
@@ -380,19 +379,19 @@ Event new_intersection_event(RealCoordinate& intersect, Arc* closing_region) {
 void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
     regions[next_region_id] = {focus, nullptr};
     Arc* arc = beach_line.find_intersected_arc(focus);
-    Arc* new_arc = beach_line.new_arc(focus, &regions[next_region_id]); //new Arc{focus, &regions[next_region_id]};
-    Arc* split_arc = beach_line.new_arc(arc->focus, arc->region); //new Arc{arc->focus, arc->region};
+    Arc* new_arc = beach_line.new_arc(focus, &regions[next_region_id]); 
+    Arc* split_arc = beach_line.new_arc(arc->focus, arc->region); 
     ++next_region_id;
 
     beach_line.insert_arc_above(arc, new_arc);
     beach_line.insert_arc_above(new_arc, split_arc);
 
-    new_arc->upper_edge = new_interior_edge(new_arc->region); //new HalfEdge{new_arc->region};
+    new_arc->upper_edge = new_interior_edge(new_arc->region); 
     half_edges.push_back(new_arc->upper_edge);
     new_arc->lower_edge = new_arc->upper_edge;
     new_arc->region->an_edge = new_arc->upper_edge;
     split_arc->upper_edge = arc->upper_edge;
-    arc->upper_edge = new_interior_edge(arc->region); //new HalfEdge{arc->region};
+    arc->upper_edge = new_interior_edge(arc->region); 
     half_edges.push_back(arc->upper_edge);
     split_arc->lower_edge = arc->upper_edge;
     arc->upper_edge->twin = new_arc->upper_edge;
@@ -411,14 +410,11 @@ void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
             int event_id = event_manager.create(
                 {intersect.x + dist, intersect.y}, intersect, split_arc
             );
-            //auto t1 = std::chrono::high_resolution_clock::now();
             if (split_arc->event_id != -1) {
                 event_queue.remove(split_arc->event_id);
             }
             split_arc->event_id = event_id;
             event_queue.insert(event_id);
-            //auto t2 = std::chrono::high_resolution_clock::now();
-            //queue_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count());
         }
     } 
     if (lower_lower) {
@@ -430,14 +426,11 @@ void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
             int event_id = event_manager.create(
                 {intersect.x + dist, intersect.y}, intersect, arc
             );
-            //auto t1 = std::chrono::high_resolution_clock::now();
             if (arc->event_id != -1) {
                 event_queue.remove(arc->event_id);
             }
             arc->event_id = event_id;
             event_queue.insert(event_id);
-            //auto t2 = std::chrono::high_resolution_clock::now();
-            //queue_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count());
         }
     }
 }
@@ -468,16 +461,14 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
     Arc* arc = event.associated_arc;
     Arc* u_arc = arc->upper;
     Arc* l_arc = arc->lower;
-
-    //VertexNode* new_intersect = new VertexNode(intersect);
      
     vertices.push_back(new_interior_vertex(intersect));
 
     arc->upper_edge->origin = vertices.back();
     arc->upper_edge->prev = arc->lower_edge;
     arc->lower_edge->next = arc->upper_edge;
-    HalfEdge* new_upper_half_edge = new_interior_edge(u_arc->region); //new HalfEdge{u_arc->region};
-    HalfEdge* new_lower_half_edge = new_interior_edge(l_arc->region); //new HalfEdge{l_arc->region};
+    HalfEdge* new_upper_half_edge = new_interior_edge(u_arc->region); 
+    HalfEdge* new_lower_half_edge = new_interior_edge(l_arc->region); 
     half_edges.push_back(new_upper_half_edge);
     half_edges.push_back(new_lower_half_edge);
     new_upper_half_edge->twin = new_lower_half_edge;
@@ -515,10 +506,7 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
                     event_queue.remove(u_arc->event_id);
                 }
                 u_arc->event_id = event_id;
-            //auto t1 = std::chrono::high_resolution_clock::now();
                 event_queue.insert(event_id);
-            //auto t2 = std::chrono::high_resolution_clock::now();
-            //queue_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count());
             }
         }
 
@@ -540,11 +528,7 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
                     event_queue.remove(l_arc->event_id);
                 }
                 l_arc->event_id = event_id;
-            //auto t1 = std::chrono::high_resolution_clock::now();
                 event_queue.insert(event_id);
-            //event_queue.push(event_id);
-            //auto t2 = std::chrono::high_resolution_clock::now();
-            //queue_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count());
             }
         }
     }
@@ -577,7 +561,7 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
     }
     regions = new Region[num_seeds];
     half_edges = {};
-    half_edges.reserve(num_seeds * 3 - 6);
+    half_edges.reserve(2 * (num_seeds * 3 - 6));
     if (boundary_half_edges != nullptr) {
         delete[] boundary_half_edges;
     }
@@ -594,6 +578,8 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
         delete[] exterior_vertices;
     }
     exterior_vertices = nullptr;
+    vertices = {};
+    vertices.reserve(3 * num_seeds - 6);
     beach_line = BeachLine();
     event_manager = EventManager();
     event_queue = EventQueue();
@@ -603,74 +589,26 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
         event_id = event_manager.create(seed);
         event_queue.insert(event_id);
     }
-    //event_queue.print_ordered_x();
     event_id = event_queue.consume_next();
     const RealCoordinate& s1 = event_manager.get(event_id).coord;
     regions[next_region_id] = {s1, nullptr};
     beach_line.set_head(beach_line.new_arc(s1, &regions[next_region_id]));
     ++next_region_id;
     event_manager.remove(event_id);
-    auto t1 = std::chrono::high_resolution_clock::now();
-    //std::cout << "About to start main loop" << std::endl;
+    
     while (!event_queue.empty()) {
-        
-        //auto t1a = std::chrono::high_resolution_clock::now();
         event_id = event_queue.consume_next();
-        //auto t2a = std::chrono::high_resolution_clock::now();
         const Event& event = event_manager.get(event_id);
-        //queue_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2a - t1a).count());
-
         if (event.associated_arc == nullptr) { 
-            //auto t1 = std::chrono::high_resolution_clock::now();
-            //std::cout << "Site x: (" << event.coord.x << ", " << event.coord.y << ")" << std::endl;
             site_event(event.coord); 
-            //auto t2 = std::chrono::high_resolution_clock::now();
-            //site_event_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count());
         }
         else {
-            //auto t1 = std::chrono::high_resolution_clock::now();
-            //std::cout << "Int:  (" << event.coord.x <<  ", " << event.coord.y << ")" << std::endl;
             intersection_event(event); 
-            //auto t2 = std::chrono::high_resolution_clock::now();
-            //int_event_times.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count());
         }
         event_manager.remove(event_id);
     }
-    auto t2 = std::chrono::high_resolution_clock::now();
-    double et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
-    std::cout << "Time spent on main loop: " << et / 1e6 << " ms" << std::endl;
-    //t1 = std::chrono::high_resolution_clock::now();
+    
     bound_DCEL();
-    //t2 = std::chrono::high_resolution_clock::now();
-    //et = std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
-    //std::cout << "Time spent bounding DCEL: " << et / 1e6 << " ms\n";
-
-
-    //double find_time = std::accumulate(find_arc_times.begin(), find_arc_times.end(), 0.0);
-    //double ins_time = std::accumulate(insert_arc_times.begin(), insert_arc_times.end(), 0.0);
-    //double del_time = std::accumulate(delete_arc_times.begin(), delete_arc_times.end(), 0.0);
-    //double new_time = std::accumulate(new_allocation_times.begin(), new_allocation_times.end(), 0.0);
-    //double site_time = std::accumulate(site_event_times.begin(), site_event_times.end(), 0.0);
-    //double int_time = std::accumulate(int_event_times.begin(), int_event_times.end(), 0.0);
-    //double queue_time = std::accumulate(queue_times.begin(), queue_times.end(), 0.0);
-    //double site_new_int_time = std::accumulate(site_new_int_times.begin(), site_new_int_times.end(), 0.0);
-    //std::cout << "Number of triangle circumcenter ops: " << op_counter << std::endl;
-    //std::cout << "Aggregate time spent finding: " << find_time / 1e6 << " ms\n"
-    //          << "Per call time spent finding:  " << find_time / find_arc_times.size() << " ns\n\n"
-    //          << "Aggregate time spent inserting: " << ins_time / 1e6 << " ms\n"
-    //          << "Per call time spent inserting:  " << ins_time / insert_arc_times.size() << " ns\n\n"
-    //         << "Aggregate time spent deleting:  " << del_time / 1e6 << " ms\n" 
-    //          << "Per call time spent deleting:   " << del_time / delete_arc_times.size() << " ns\n\n"
-    //          << "New allocations time: " << new_time / 1e6 << " ms\n"
-    //std::cout          << "Aggregate time spent on site events:    " << site_time / 1e6 << " ms\n"
-    //          << "Avg Per call time spent on site events: " << site_time / site_event_times.size() << " ns\n"
-    //          << "Aggregate time spent on site new int events:    " << site_new_int_time / 1e6 << " ms\n"
-    //          << "Avg Per call time spent on site new int events: " << site_new_int_time / site_new_int_times.size() << " ns\n\n"
-    //          << "Aggregate time spent on int events:     " << int_time / 1e6 << " ms\n"
-    //          << "Avg Per call time spent on int events:  " << int_time / int_event_times.size() << " ns\n"
-    //          << "Aggregate time spent on queue:    " << queue_time / 1e6 << " ms\n"
-    //          << "Avg Per call time spent on queue: " << queue_time / queue_times.size() << " ns\n";
-;
 }
 
 RealCoordinate clip_infinite_edge(
@@ -866,8 +804,6 @@ void FortunesAlgorithm::clip_to_bbox(double min, double max) {
 }
 
 std::vector<VertexNode*> FortunesAlgorithm::consume_vertex_graph() {
-    //std::cout << "Consuming vertex graph" << std::endl;
-    //std::cout << "Size of regions: " << regions.size() << std::endl;
     for (HalfEdge* half_edge : half_edges) {
         half_edge->origin->connected.push_back(half_edge->twin->origin);
     }
@@ -879,21 +815,19 @@ std::vector<RegionNode*> FortunesAlgorithm::consume_region_graph() {
 }
 
 std::vector<RegionNode*> FortunesAlgorithm::region_graph_from_regions() {
-    std::vector<RegionNode*> nodes;
+    std::vector<RegionNode*> nodes; nodes.reserve(num_seeds);
+    RegionNode* nodes_array = new RegionNode[num_seeds];
+    int next_id = 0;
     std::unordered_map<Region*, RegionNode*> node_map;
-    nodes.reserve(num_seeds);
     for (int i = 0; i < num_seeds; i++) {
-        nodes.push_back(new RegionNode);
+        nodes_array[i].adjacent.reserve(8);
+        nodes_array[i].vertices.reserve(8);
+        nodes.push_back(&nodes_array[i]);
         node_map.insert({&regions[i], nodes.back()});
     }
-    //std::cout << "Finished iterating over regions" << std::endl;
     for (int i = 0; i < num_seeds; i++) {
-        
         RegionNode* this_region = node_map[&regions[i]];
         HalfEdge* edge_ptr = regions[i].an_edge;
-        if (edge_ptr == nullptr) {
-            std::cout << "edge_ptr was nullptr" << std::endl;
-        }
         while (edge_ptr->next != regions[i].an_edge) {
             this_region->vertices.push_back(edge_ptr->origin->coord);
             if (edge_ptr->twin->region != nullptr) {

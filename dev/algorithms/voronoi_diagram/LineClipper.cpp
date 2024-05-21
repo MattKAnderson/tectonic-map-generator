@@ -31,19 +31,19 @@ bool LineClipper::CohenSutherlandClip(
         double x, y;
         int code_out = code_a > code_b ? code_a : code_b;
         if (code_out & TOP) {
-            x = a_.x + (b_.x - a_.x) * (max_ - a_.y) / (b_.y - a_.y);
+            x = a_.x + (max_ - a_.y) * (b_.x - a_.x) / (b_.y - a_.y);
             y = max_;
         }
         else if (code_out & BOTTOM) {
-            x = a_.x + (b_.x - a_.x) * (min_ - a_.y) / (b_.y - a_.y);
+            x = a_.x + (min_ - a_.y) * (b_.x - a_.x) / (b_.y - a_.y);
             y = min_;
         }
         else if (code_out & RIGHT) {
-            y = a_.y + (b_.y - a_.y) * (max_ - a_.x) / (b_.x - a_.x);
+            y = a_.y + (max_ - a_.x) * (b_.y - a_.y) / (b_.x - a_.x);
             x = max_;
         }
         else {
-            y = a_.y + (b_.y - a_.y) * (min_ - a_.x) / (b_.x - a_.x);
+            y = a_.y + (min_ - a_.x) * (b_.y - a_.y) / (b_.x - a_.x);
             x = min_;
         }
 

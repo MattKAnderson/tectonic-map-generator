@@ -486,10 +486,10 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
         event_id = event_queue.consume_next();
         const Event& event = event_manager.get(event_id);
         if (event.associated_arc == nullptr) { 
-            site_event(event.coord); 
+            site_event(event.coord);
         }
         else {
-            intersection_event(event); 
+            intersection_event(event);
         }
         event_manager.remove(event_id);
     }
@@ -694,8 +694,8 @@ void FortunesAlgorithm::crop(double min, double max) {
         HalfEdge* edge = region->an_edge->next;
         while (edge != region->an_edge) {
             if (interior_of_bbox(vertices[edge->origin_id]->coord, min, max)) {
-                //region->an_edge = edge;
-                cropped_regions.push_back(region);                
+                cropped_regions.push_back(region);  
+                break;             
             }
             edge = edge->next;
         }
@@ -848,6 +848,7 @@ RegionGraph FortunesAlgorithm::get_region_graph() {
     for (int i = 0; i < num_seeds; i++) {
         nodes_array[i].adjacent.reserve(8);
         nodes_array[i].vertices.reserve(8);
+        nodes_array[i].site = regions[i]->seed;
         nodes.push_back(&nodes_array[i]);
         node_map.insert({regions[i], nodes.back()});
     }
@@ -860,6 +861,9 @@ RegionGraph FortunesAlgorithm::get_region_graph() {
                 this_region->adjacent.push_back(node_map[edge_ptr->twin->region]);
             }
             edge_ptr = edge_ptr->next;
+        }
+        if (edge_ptr->twin->region != nullptr) {
+            this_region->adjacent.push_back(node_map[edge_ptr->twin->region]);
         }
         this_region->vertices.push_back(vertices[edge_ptr->origin_id]->coord);
     }

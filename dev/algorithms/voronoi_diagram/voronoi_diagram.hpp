@@ -38,9 +38,9 @@ private:
 };
 
 struct RegionNode {
+    RealCoordinate site; 
     std::vector<RealCoordinate> vertices;
     std::vector<RegionNode*> adjacent;
-    RegionNode() {}
     RealCoordinate centroid();
 };
 

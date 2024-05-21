@@ -232,6 +232,7 @@ private:
     //double min;
     //double max;
     EventManager event_manager;
+    std::vector<Region*> regions;
     std::vector<VertexNode*> vertices;
     std::vector<HalfEdge*> half_edges;
     // std::vector<Region*> region_refs; TODO use this
@@ -245,9 +246,10 @@ private:
     int next_vertex_index = 0;
     EventQueue event_queue;
     BeachLine beach_line;
-    Region* regions = nullptr;
+    Region* region_data = nullptr;
     int next_region_id = 0;
 
+    Region* new_region(const RealCoordinate& c);
     HalfEdge* new_interior_edge(Region* region);
     VertexNode* new_interior_vertex(const RealCoordinate& c);
     void initialize();
@@ -321,13 +323,20 @@ inline Event::Event(
 inline FortunesAlgorithm::~FortunesAlgorithm() {
     if (internal_half_edges) { delete[] internal_half_edges; }
     if (internal_vertices) { delete[] internal_vertices; }
-    if (regions) { delete[] regions; }
+    if (region_data) { delete[] region_data; }
     for (VertexNode* vertices : additional_vertices) {
         delete[] vertices;
     }
     for (HalfEdge* edges : additional_half_edges) {
         delete[] edges;
     }
+}
+
+inline Region* FortunesAlgorithm::new_region(const RealCoordinate& site) {
+    Region* region = &region_data[next_region_id++];
+    region->seed = site;
+    regions.push_back(region);
+    return region;
 }
 
 inline HalfEdge* FortunesAlgorithm::new_interior_edge(Region* region) {

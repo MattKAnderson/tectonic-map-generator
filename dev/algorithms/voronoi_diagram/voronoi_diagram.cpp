@@ -260,11 +260,9 @@ Event new_intersection_event(RealCoordinate& intersect, Arc* closing_region) {
 }
 
 void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
-    regions[next_region_id] = {focus, nullptr};
     Arc* arc = beach_line.find_intersected_arc(focus);
-    Arc* new_arc = beach_line.new_arc(focus, &regions[next_region_id]); 
+    Arc* new_arc = beach_line.new_arc(focus, new_region(focus)); 
     Arc* split_arc = beach_line.new_arc(arc->focus, arc->region); 
-    ++next_region_id;
 
     beach_line.insert_arc_above(arc, new_arc);
     beach_line.insert_arc_above(new_arc, split_arc);
@@ -434,10 +432,11 @@ bool compare_y_greater(const RealCoordinate& a, const RealCoordinate& b) {
 }
 
 void FortunesAlgorithm::initialize() {
-    if (regions != nullptr) {
-        delete[] regions;
+    if (region_data != nullptr) {
+        delete[] region_data;
     }
-    regions = new Region[num_seeds];
+    region_data = new Region[num_seeds];
+    regions = {};
     half_edges = {};
     half_edges.reserve(2 * (num_seeds * 3 - 6));
     //if (boundary_half_edges != nullptr) {
@@ -480,9 +479,7 @@ void FortunesAlgorithm::compute(std::vector<RealCoordinate>& seeds, double min, 
     }
     event_id = event_queue.consume_next();
     const RealCoordinate& s1 = event_manager.get(event_id).coord;
-    regions[next_region_id] = {s1, nullptr};
-    beach_line.set_head(beach_line.new_arc(s1, &regions[next_region_id]));
-    ++next_region_id;
+    beach_line.set_head(beach_line.new_arc(s1, new_region(s1)));
     event_manager.remove(event_id);
     
     while (!event_queue.empty()) {
@@ -658,7 +655,8 @@ void FortunesAlgorithm::crop(double min, double max) {
 
     std::unordered_set<HalfEdge*> seen_edges; seen_edges.reserve(half_edges.size());
     std::vector<HalfEdge*> cropped_half_edges;
-    std::vector<VertexNode*> cropped_vertices; 
+    std::vector<VertexNode*> cropped_vertices;
+    std::vector<Region*> cropped_regions; 
     std::vector<int> vertex_id_map(vertices.size(), -1);
     // std::vector<Region*> cropped_regions; TODO
     for (int i = 0; i < vertices.size(); i++) {
@@ -680,13 +678,6 @@ void FortunesAlgorithm::crop(double min, double max) {
             edge->origin_id = vertex_id_map[edge->origin_id];
             edge->twin->origin_id = vertex_id_map[edge->twin->origin_id];
             
-            /* 
-             *   This part I probably want to reconsider. An alternative 
-             *   approach is to run a loop over the region's vertices, and
-             *   uses the first half_edge that is in bounds and not on the 
-             *   exterior, if there no such edges, then this region is no
-             *   longer inside 
-             */
             if (edge->region) {
                 edge->region->an_edge = edge;
             }
@@ -699,6 +690,17 @@ void FortunesAlgorithm::crop(double min, double max) {
     }
     vertices = cropped_vertices;
     half_edges = cropped_half_edges;
+    for (Region* region : regions) {
+        HalfEdge* edge = region->an_edge->next;
+        while (edge != region->an_edge) {
+            if (interior_of_bbox(vertices[edge->origin_id]->coord, min, max)) {
+                //region->an_edge = edge;
+                cropped_regions.push_back(region);                
+            }
+            edge = edge->next;
+        }
+    }
+    regions = cropped_regions;
 }
 
 void FortunesAlgorithm::connect_DCEL_exterior(
@@ -847,12 +849,12 @@ RegionGraph FortunesAlgorithm::get_region_graph() {
         nodes_array[i].adjacent.reserve(8);
         nodes_array[i].vertices.reserve(8);
         nodes.push_back(&nodes_array[i]);
-        node_map.insert({&regions[i], nodes.back()});
+        node_map.insert({regions[i], nodes.back()});
     }
     for (int i = 0; i < num_seeds; i++) {
-        RegionNode* this_region = node_map[&regions[i]];
-        HalfEdge* edge_ptr = regions[i].an_edge;
-        while (edge_ptr->next != regions[i].an_edge) {
+        RegionNode* this_region = node_map[regions[i]];
+        HalfEdge* edge_ptr = regions[i]->an_edge;
+        while (edge_ptr->next != regions[i]->an_edge) {
             this_region->vertices.push_back(vertices[edge_ptr->origin_id]->coord);
             if (edge_ptr->twin->region != nullptr) {
                 this_region->adjacent.push_back(node_map[edge_ptr->twin->region]);

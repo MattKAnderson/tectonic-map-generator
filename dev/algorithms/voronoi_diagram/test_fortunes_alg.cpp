@@ -42,11 +42,7 @@ std::vector<std::pair<RealCoordinate, RealCoordinate>> graph_to_line_segments(
 
 int main() {
 
-    /*
-     * TODO: look at bound() case for seed = 12490, nseeds = 100. Looked like the lower
-     *       left and lower right corners were out of position.
-     */
-    int seed = 90; 
+    int seed = 12490; 
     int xsize = 4096;
     int ysize = xsize;
     int nseeds = 100;

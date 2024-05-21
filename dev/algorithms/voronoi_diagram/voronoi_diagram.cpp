@@ -592,91 +592,6 @@ void FortunesAlgorithm::bound() {
         upper = upper->upper;
     } 
     connect_DCEL_exterior(exterior, xmax, xmin, ymax, ymin);
-    /*
-    exterior_vertices = new VertexNode[exterior.size() + 4];
-    boundary_half_edges = new HalfEdge[exterior.size() * 2 + 8];
-    int next_vertex_id = 0;
-    int next_half_edge_id = 0;
-
-    RealCoordinate corners[4] = {{xmin, ymin}, {xmax, ymin}, {xmax, ymax}, {xmin, ymax}};
-    int corner_to_place = 0;
-    for (auto it = exterior.begin(); it != exterior.end(); ++it) {
-        for (int i = corner_to_place; i < 4; i++) {
-            if (corners[i] == (*it).first) {
-                ++corner_to_place;
-                break;
-            }
-            else if (is_before_on_bbox_exterior(corners[i], (*it).first, xmax, xmin, ymax, ymin)) {
-                exterior.insert(it, {corners[i], nullptr});
-                ++corner_to_place;
-            }
-            else {
-                break;
-            }
-        }
-    }
-    for (int i = corner_to_place; i < 4; i++) {
-        exterior.emplace_back(corners[i], nullptr);
-    }
-
-    HalfEdge* prev_edge = nullptr;
-    HalfEdge* first_corner_edge = nullptr;
-    int first_origin_id = -1;
-    for (auto [vertex, edge_out] : exterior) {
-        VertexNode* vertex_node = &exterior_vertices[next_vertex_id++];
-        vertex_node->coord = vertex;
-        vertices.push_back(vertex_node);
-        HalfEdge* new_edge = &boundary_half_edges[next_half_edge_id++];
-        HalfEdge* twin_edge = &boundary_half_edges[next_half_edge_id++];
-        if (edge_out == nullptr) {
-            //new_edge->region = nullptr;
-            new_edge->prev = prev_edge;
-            new_edge->origin_id = vertices.size() - 1;
-            new_edge->twin = twin_edge;
-            twin_edge->twin = new_edge;
-            if (first_corner_edge == nullptr) { 
-                first_corner_edge = new_edge; 
-                first_origin_id = vertices.size() - 1;    
-            }
-            if (prev_edge) {
-                prev_edge->next = new_edge;
-                prev_edge->twin->origin_id = vertices.size() - 1;
-            }
-            prev_edge = new_edge;
-            half_edges.push_back(new_edge);
-            half_edges.push_back(twin_edge);
-        }
-        else {
-            edge_out->origin_id = vertices.size() - 1;
-            new_edge->region = edge_out->twin->region;
-            new_edge->prev = edge_out->twin;
-            new_edge->origin_id = vertices.size() - 1;
-            new_edge->twin = twin_edge;
-            twin_edge->twin = new_edge;
-            if (prev_edge) { 
-                prev_edge->next = edge_out; 
-                prev_edge->twin->origin_id = vertices.size() - 1;
-                edge_out->prev = prev_edge;    
-            }
-            prev_edge = new_edge;
-            edge_out->twin->next = prev_edge;
-            half_edges.push_back(prev_edge);
-            half_edges.push_back(twin_edge);
-        }
-    }
-    HalfEdge* edge_out = exterior.begin()->second;
-    if (edge_out == nullptr) {
-        first_corner_edge->prev = prev_edge;
-        prev_edge->next = first_corner_edge;
-        prev_edge->twin->origin_id = first_origin_id;
-    }
-    else {
-        HalfEdge* next = edge_out;
-        prev_edge->next = next;
-        prev_edge->twin->origin_id = first_origin_id;
-        next->prev = prev_edge;
-    }
-    */
 }
 
 bool outside_bbox(const RealCoordinate& c, double min, double max) {
@@ -685,6 +600,10 @@ bool outside_bbox(const RealCoordinate& c, double min, double max) {
 
 bool inside_bbox(const RealCoordinate& c, double min, double max) {
     return c.x >= min && c.x <= max && c.y >= min && c.y <= max;
+}
+
+bool interior_of_bbox(const RealCoordinate& c, double min, double max) {
+    return c.x > min && c.x < max && c.y > min && c.y < max;
 }
 
 class crop_compare {
@@ -701,15 +620,14 @@ private:
 };
 
 void FortunesAlgorithm::crop(double min, double max) {
+    // currently requires bounding first
     LineClipper clipper(min, max);
     crop_compare comp(min, max);
-    //int inside_count = 0;
     std::list<std::pair<RealCoordinate, HalfEdge*>> exterior;
     for (HalfEdge* edge : half_edges) {
         if (edge->origin_id == -1) {
             const RealCoordinate& twin_c = vertices[edge->twin->origin_id]->coord;
-            if (inside_bbox(twin_c, min, max)) { 
-                //++inside_count;
+            if (interior_of_bbox(twin_c, min, max)) { 
                 RealCoordinate v = clip_infinite_edge(edge, max, min, max, min);
                 exterior.emplace_back(v, edge);
             }
@@ -720,18 +638,25 @@ void FortunesAlgorithm::crop(double min, double max) {
             if (edge->twin->origin_id == -1) { continue; }
             const RealCoordinate& twin_c = vertices[edge->twin->origin_id]->coord;
             if (!clipper.CohenSutherlandClip(c, twin_c)) { continue; } 
-            vertices[edge->origin_id]->coord = clipper.get_clipped_a();
+            //std::cout << "line crossing exterior case, c: (" << clipper.get_clipped_a().x << ", " << clipper.get_clipped_a().y << ")\n";
+            //std::cout << "line crossing exterior case, b: (" << clipper.get_clipped_b().x << ", " << clipper.get_clipped_b().y << ")\n";
             exterior.emplace_back(clipper.get_clipped_a(), edge);
         }
         else if (c.x == min || c.x == max || c.y == min || c.y == max) {
+            //std::cout << "c on exterior case, c: (" << c.x << ", " << c.y << "\n"; 
             exterior.emplace_back(c, edge);
         }
         //++inside_count;
     }
     exterior.sort(comp);
 
+    //for (auto [c, e] : exterior) {
+    //    std::cout << "(" << c.x << ", " << c.y << ")" << std::endl;
+    //}
+
     connect_DCEL_exterior(exterior, max, min, max, min);
 
+    std::unordered_set<HalfEdge*> seen_edges; seen_edges.reserve(half_edges.size());
     std::vector<HalfEdge*> cropped_half_edges;
     std::vector<VertexNode*> cropped_vertices; 
     std::vector<int> vertex_id_map(vertices.size(), -1);
@@ -744,20 +669,33 @@ void FortunesAlgorithm::crop(double min, double max) {
         }
     }
     for (HalfEdge* edge : half_edges) {
-        if (edge->origin_id == -1) { continue; }
-        if (inside_bbox(vertices[edge->origin_id]->coord, min, max)) {
+        if (seen_edges.find(edge) != seen_edges.end()) { continue; }
+        else if (
+            edge->origin_id != -1
+            && inside_bbox(vertices[edge->origin_id]->coord, min, max)
+            && inside_bbox(vertices[edge->twin->origin_id]->coord, min, max)
+        ) { 
             cropped_half_edges.push_back(edge);
+            cropped_half_edges.push_back(edge->twin);
             edge->origin_id = vertex_id_map[edge->origin_id];
-            if (edge->origin_id >= cropped_vertices.size()) {
-                std::cout << "Origin id out of bounds: " << edge->origin_id << std::endl;
-            }
-            else if (edge->origin_id < 0 ) {
-                std::cout << "Origin id out of bounds: " << edge->origin_id << std::endl;
-            }
+            edge->twin->origin_id = vertex_id_map[edge->twin->origin_id];
+            
+            /* 
+             *   This part I probably want to reconsider. An alternative 
+             *   approach is to run a loop over the region's vertices, and
+             *   uses the first half_edge that is in bounds and not on the 
+             *   exterior, if there no such edges, then this region is no
+             *   longer inside 
+             */
             if (edge->region) {
                 edge->region->an_edge = edge;
             }
+            if (edge->twin->region) {
+                edge->region->an_edge = edge;
+            }
         }
+        seen_edges.insert(edge);
+        seen_edges.insert(edge->twin);
     }
     vertices = cropped_vertices;
     half_edges = cropped_half_edges;
@@ -796,6 +734,9 @@ void FortunesAlgorithm::connect_DCEL_exterior(
     for (int i = corner_to_place; i < 4; i++) {
         exterior.emplace_back(corners[i], nullptr);
     }
+    //for (auto [c, e] : exterior) {
+    //    std::cout << "(" << c.x << ", " << c.y << ")" << std::endl;
+    //}
 
     HalfEdge* prev_edge = nullptr;
     HalfEdge* first_corner_edge = nullptr;
@@ -831,6 +772,10 @@ void FortunesAlgorithm::connect_DCEL_exterior(
             new_edge->origin_id = vertices.size() - 1;
             new_edge->twin = twin_edge;
             twin_edge->twin = new_edge;
+            if (first_corner_edge == nullptr) { 
+                first_corner_edge = new_edge; 
+                first_origin_id = vertices.size() - 1;    
+            }
             if (prev_edge) { 
                 prev_edge->next = edge_out; 
                 prev_edge->twin->origin_id = vertices.size() - 1;
@@ -878,12 +823,17 @@ VertexGraph FortunesAlgorithm::get_vertex_graph() {
         if (half_edge->twin->origin_id == -1) {
             std::cout << "Caught -1 id" << std::endl;
         }
-        else if (half_edge->twin->origin_id > vertices.size()) {
+        else if (half_edge->twin->origin_id >= vertices.size()) {
             std::cout << "Caught out of bounds id" << std::endl;
+            RealCoordinate c = vertices[half_edge->origin_id]->coord;
+            std::cout << "this coord: " << c.x << ", " << c.y << std::endl;
         }
+        else {
         new_vertices[half_edge->origin_id].connected.push_back(
             &new_vertices[half_edge->twin->origin_id]
         );
+
+        }
     }
     return VertexGraph(new_vertices, vertex_refs);
 }

@@ -8,6 +8,7 @@
 #include <vector>
 #include <random>
 #include <unordered_map>
+#include <unordered_set>
 #include <Coordinate.hpp>
 #include <geometry.hpp>
 #include <LineClipper.hpp>

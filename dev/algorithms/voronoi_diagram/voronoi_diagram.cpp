@@ -284,12 +284,6 @@ void BeachLine::remove_arc(Arc* arc) {
     // TODO: delete_balance(y);
 }
 
-Event new_intersection_event(RealCoordinate& intersect, Arc* closing_region) {
-    double dist = euclidean_distance(closing_region->focus, intersect);
-    Event event({intersect.x + dist, intersect.y}, intersect, closing_region);
-    return event;
-}
-
 void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
     Arc* arc = beach_line.find_intersected_arc(focus);
     Arc* new_arc = beach_line.new_arc(focus, new_region(focus)); 

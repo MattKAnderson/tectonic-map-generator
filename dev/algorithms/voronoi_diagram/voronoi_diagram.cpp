@@ -540,20 +540,6 @@ bool is_before_on_bbox_exterior(
     return b.y == ymax && a.x > b.x;
 }
 
-bool is_corner_node(
-    VertexNode* node, double xmax, double xmin, double ymax, double ymin
-) {
-    if (
-        node->coord == RealCoordinate(xmin, ymin)
-        || node->coord == RealCoordinate(xmin, ymax)
-        || node->coord == RealCoordinate(xmax, ymin)
-        || node->coord == RealCoordinate(xmax, ymax)
-    ) { 
-        return true; 
-    }
-    return false;
-}
-
 void FortunesAlgorithm::bound() {
     double xmin = std::numeric_limits<double>::max();
     double ymin = std::numeric_limits<double>::max();

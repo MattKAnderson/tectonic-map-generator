@@ -446,22 +446,6 @@ void FortunesAlgorithm::intersection_event(const Event& event) {
     }
 }
 
-bool compare_x_lower(const RealCoordinate& a, const RealCoordinate& b) {
-    return a.x < b.x;
-}
-
-bool compare_x_greater(const RealCoordinate& a, const RealCoordinate& b) {
-    return a.x > b.x;
-}
-
-bool compare_y_lower(const RealCoordinate& a, const RealCoordinate& b) {
-    return a.y < b.y;
-}
-
-bool compare_y_greater(const RealCoordinate& a, const RealCoordinate& b) {
-    return a.y > b.y;
-}
-
 void FortunesAlgorithm::initialize() {
     if (region_data != nullptr) {
         delete[] region_data;

@@ -42,6 +42,7 @@ struct RegionNode {
     std::vector<RealCoordinate> vertices;
     std::vector<RegionNode*> adjacent;
     RealCoordinate centroid();
+    double area();
 };
 
 class RegionGraph {

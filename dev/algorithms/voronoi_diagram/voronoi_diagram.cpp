@@ -347,27 +347,6 @@ void FortunesAlgorithm::site_event(const RealCoordinate& focus) {
     }
 }
 
-double ray_direction(
-    const RealCoordinate& intersection,
-    const RealCoordinate& focus_1,
-    const RealCoordinate& focus_2,
-    const RealCoordinate& focus_3
-) {
-    if (focus_1.x == focus_2.x) {
-        //similar for f1.y == f2.y ???
-        return (focus_3.x - focus_1.x) * (intersection.x - focus_1.x);
-    }
-    //else if (focus_1.y == focus_2.y) {
-    //
-    //}
-    else if (focus_1.x > focus_2.x) {
-        return (intersection.y - focus_1.y) * (focus_2.y - focus_1.y);
-    }
-    else {
-        return (intersection.y - focus_2.y) * (focus_1.y - focus_2.y);
-    }
-}
-
 void FortunesAlgorithm::intersection_event(const Event& event) {
     const RealCoordinate& intersect = event.intersect_point;
     Arc* arc = event.associated_arc;
